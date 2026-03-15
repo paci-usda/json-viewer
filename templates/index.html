@@ -96,7 +96,7 @@
     .header-menu {
       position: absolute; top: calc(100% + 4px); right: 0; min-width: 170px;
       background: #fff; border: 1px solid #bbb; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.12);
-      padding: 4px; z-index: 5;
+      padding: 4px; z-index: 30;
     }
     .header-menu-item {
       display: block; width: 100%; text-align: left; border: none; background: transparent;
@@ -127,7 +127,7 @@
     .hidden-form { display: none; }
 
     /* ── Drawer controls ─────────────────────────────────────────────────── */
-    .drawer-shell { position: sticky; top: 0; z-index: 10; background: #f0f0f0; padding-bottom: 6px; }
+    .drawer-shell { position: relative; background: #f0f0f0; padding-bottom: 6px; }
     .drawer-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
     .drawer-tab {
       border-radius: 0 0 6px 6px; padding: 7px 12px; background: #dbe4ef; border-color: #aab7c6;
