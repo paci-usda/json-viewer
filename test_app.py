@@ -75,7 +75,10 @@ class JsonViewerTestCase(unittest.TestCase):
                 )
                 self.assertEqual(response.status_code, 200)
                 self.assertIn(content_type, response.headers["Content-Type"])
-                self.assertIn("attachment; filename=\"json-viewer-export." + export_format, response.headers["Content-Disposition"])
+                self.assertIn(
+                    f'attachment; filename="json-viewer-export.{export_format}',
+                    response.headers["Content-Disposition"],
+                )
                 self.assertIn(header_row, response.data)
                 self.assertIn(sample_row, response.data)
 

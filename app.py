@@ -38,6 +38,7 @@ _sort_keys: list = []         # [[field, "asc"|"desc"], …] – newest-first
 _filters: dict = {}           # field → {"pattern": str, "mode": "include"|"exclude"}
 _truncate_limits: dict = {}   # field → max displayed chars
 _uploaded_files: dict = {}    # sha256 → set(filename)
+_default_truncate_limit: int = 50
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +269,7 @@ def index():
                 extension = "json"
             elif export_format in {"csv", "tsv"}:
                 delimiter = "," if export_format == "csv" else "\t"
-                payload_buffer = io.StringIO(newline="")
+                payload_buffer = io.StringIO()
                 writer = csv.writer(payload_buffer, delimiter=delimiter)
                 writer.writerow(export_fields)
                 for rec in display_records:
@@ -314,6 +315,7 @@ def index():
         filters=_filters,
         filter_errors=filter_errors,
         truncate_limits=_truncate_limits,
+        default_truncate_limit=_default_truncate_limit,
         display_value=_display_value,
         flashed=flashed,
     )

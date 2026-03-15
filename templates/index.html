@@ -125,6 +125,8 @@
     .col { display: flex; flex-direction: column; gap: 6px; }
     hr.sep { border: none; border-top: 1px solid #eee; margin: 8px 0; }
     .hidden-form { display: none; }
+    dialog { border: 1px solid #bbb; border-radius: 6px; padding: 14px 16px; width: min(320px, calc(100vw - 32px)); }
+    dialog::backdrop { background: rgba(0,0,0,.25); }
 
     /* ── Drawer controls ─────────────────────────────────────────────────── */
     .drawer-shell { position: relative; background: #f0f0f0; padding-bottom: 6px; }
@@ -383,7 +385,7 @@
                   <div class="header-menu" data-header-menu-panel="{{ field }}" hidden>
                     <button type="button" class="header-menu-item" data-sort-field="{{ field }}" data-sort-order="asc">Sort Ascending</button>
                     <button type="button" class="header-menu-item" data-sort-field="{{ field }}" data-sort-order="desc">Sort Descending</button>
-                    <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-limit="50">Truncate to 50</button>
+                    <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-limit="{{ default_truncate_limit }}">Truncate to {{ default_truncate_limit }}</button>
                     <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-prompt="1">Truncate...</button>
                     <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-clear="1" {% if not truncate_limits.get(field) %}disabled{% endif %}>Clear Truncate</button>
                   </div>
@@ -444,6 +446,17 @@
   <input type="hidden" name="truncate_limit" id="truncate-limit">
   <input type="hidden" name="truncate_clear" id="truncate-clear" value="0">
 </form>
+
+<dialog id="truncate-dialog">
+  <form method="dialog" class="col">
+    <label for="truncate-dialog-input"><b id="truncate-dialog-title">Truncate displayed values</b></label>
+    <input type="text" id="truncate-dialog-input" inputmode="numeric" value="{{ default_truncate_limit }}">
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" id="truncate-dialog-cancel">Cancel</button>
+      <button type="button" class="primary" id="truncate-dialog-apply">Apply</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
 /* ── Drawer tabs ────────────────────────────────────────────────────────── */
@@ -568,6 +581,11 @@ function selectAllFields(checked) {
   const truncateField = document.getElementById('truncate-field');
   const truncateLimit = document.getElementById('truncate-limit');
   const truncateClear = document.getElementById('truncate-clear');
+  const truncateDialog = document.getElementById('truncate-dialog');
+  const truncateDialogTitle = document.getElementById('truncate-dialog-title');
+  const truncateDialogInput = document.getElementById('truncate-dialog-input');
+  const truncateDialogApply = document.getElementById('truncate-dialog-apply');
+  const truncateDialogCancel = document.getElementById('truncate-dialog-cancel');
 
   if (!sortForm || !truncateForm) return;
 
@@ -606,12 +624,25 @@ function selectAllFields(checked) {
       truncateField.value = button.dataset.truncateField;
       truncateClear.value = button.dataset.truncateClear === '1' ? '1' : '0';
       if (button.dataset.truncatePrompt === '1') {
-        const answer = window.prompt('Truncate displayed values to how many characters?', '50');
-        if (answer === null) {
+        if (!truncateDialog || !truncateDialog.showModal) {
+          const answer = window.prompt('Truncate displayed values to how many characters?', '{{ default_truncate_limit }}');
+          if (answer === null) {
+            closeMenus();
+            return;
+          }
+          truncateLimit.value = answer;
           closeMenus();
+          truncateForm.submit();
           return;
         }
-        truncateLimit.value = answer;
+        truncateDialog.dataset.field = button.dataset.truncateField;
+        truncateDialogTitle.textContent = 'Truncate "' + button.dataset.truncateField + '" values';
+        truncateDialogInput.value = '{{ default_truncate_limit }}';
+        closeMenus();
+        truncateDialog.showModal();
+        truncateDialogInput.focus();
+        truncateDialogInput.select();
+        return;
       } else {
         truncateLimit.value = button.dataset.truncateLimit || '';
       }
@@ -619,6 +650,22 @@ function selectAllFields(checked) {
       truncateForm.submit();
     });
   });
+
+  if (truncateDialogApply) {
+    truncateDialogApply.addEventListener('click', function () {
+      truncateField.value = truncateDialog.dataset.field || '';
+      truncateClear.value = '0';
+      truncateLimit.value = truncateDialogInput.value;
+      truncateDialog.close();
+      truncateForm.submit();
+    });
+  }
+
+  if (truncateDialogCancel) {
+    truncateDialogCancel.addEventListener('click', function () {
+      truncateDialog.close();
+    });
+  }
 
   document.addEventListener('click', closeMenus);
 })();
