@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JSON Log Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: monospace; font-size: 13px; margin: 0; background: #f0f0f0; color: #222; }
+
+    h1 { margin: 0; padding: 12px 16px; background: #2c3e50; color: #ecf0f1; font-size: 18px; }
+
+    .container { padding: 12px 16px; }
+
+    /* ── Panels ─────────────────────────────────────────────────────────── */
+    .panel {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .panel h3 { margin: 0 0 10px; font-size: 14px; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+
+    /* ── Alerts ─────────────────────────────────────────────────────────── */
+    .alert { padding: 8px 12px; border-radius: 3px; margin-bottom: 10px; font-size: 13px; }
+    .alert-error { background: #fdd; border: 1px solid #f99; color: #900; }
+    .alert-info  { background: #dfd; border: 1px solid #9c9; color: #060; }
+
+    /* ── Buttons ────────────────────────────────────────────────────────── */
+    button {
+      padding: 5px 12px; border: 1px solid #888; border-radius: 3px;
+      background: #e8e8e8; cursor: pointer; font-size: 12px;
+    }
+    button:hover { background: #d0d0d0; }
+    button.primary { background: #2c7be5; color: #fff; border-color: #1a5fb4; }
+    button.primary:hover { background: #1a5fb4; }
+    button.danger { background: #e74c3c; color: #fff; border-color: #c0392b; }
+    button.danger:hover { background: #c0392b; }
+
+    /* ── Forms ──────────────────────────────────────────────────────────── */
+    label { cursor: pointer; }
+    input[type=text], textarea, select {
+      border: 1px solid #bbb; border-radius: 3px; padding: 3px 6px; font-size: 12px; font-family: monospace;
+    }
+    textarea { resize: vertical; }
+
+    /* ── Fields list (drag-and-drop) ─────────────────────────────────────── */
+    #fields-list { max-height: 260px; overflow-y: auto; border: 1px solid #ddd; border-radius: 3px; padding: 4px; }
+    .field-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 6px; border-radius: 3px; user-select: none;
+      background: #fafafa; border: 1px solid #e0e0e0; margin-bottom: 3px;
+    }
+    .field-row.drag-over { border-color: #2c7be5; background: #e8f0fc; }
+    .drag-handle { cursor: grab; color: #999; font-size: 16px; line-height: 1; }
+    .drag-handle:active { cursor: grabbing; }
+
+    /* ── Sort badges ────────────────────────────────────────────────────── */
+    .sort-badge {
+      display: inline-block; background: #2c7be5; color: #fff;
+      padding: 2px 7px; border-radius: 10px; font-size: 11px; margin: 2px 2px 0 0;
+    }
+    .sort-badge .rank { opacity: .75; font-size: 10px; margin-left: 3px; }
+
+    /* ── Filter error ───────────────────────────────────────────────────── */
+    .filter-err { color: #c00; font-size: 11px; margin-left: 4px; }
+
+    /* ── Active filter indicator ─────────────────────────────────────────── */
+    .active-filter { color: #2c7be5; font-weight: bold; }
+
+    /* ── Data area ──────────────────────────────────────────────────────── */
+    .data-area { overflow: auto; max-height: 560px; }
+
+    /* Table view */
+    table.data-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+    table.data-table th, table.data-table td {
+      border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; white-space: pre-wrap;
+    }
+    table.data-table thead th {
+      background: #e4eaf5; position: sticky; top: 0; z-index: 1;
+    }
+    table.data-table tbody tr:nth-child(even) { background: #f7f9fc; }
+    table.data-table tbody tr:hover { background: #eef3fb; }
+
+    /* Card view */
+    .card { border: 1px solid #ccc; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; background: #fafafa; }
+    .card-field { display: flex; gap: 6px; padding: 1px 0; }
+    .card-key { font-weight: bold; min-width: 120px; color: #2c3e50; }
+    .card-val { color: #333; }
+
+    /* Raw view */
+    .raw-record {
+      font-family: monospace; font-size: 11px;
+      padding: 4px 6px; border-bottom: 1px solid #eee;
+      white-space: pre-wrap; word-break: break-all;
+    }
+    .raw-record:nth-child(even) { background: #f7f7f7; }
+
+    /* ── Layout helpers ─────────────────────────────────────────────────── */
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .col { display: flex; flex-direction: column; gap: 6px; }
+    hr.sep { border: none; border-top: 1px solid #eee; margin: 8px 0; }
+  </style>
+</head>
+<body>
+<h1>📋 JSON Log Viewer</h1>
+<div class="container">
+
+  {# ── Flash messages ───────────────────────────────────────────────────── #}
+  {% for category, msg in flashed %}
+  <div class="alert alert-{{ 'error' if category == 'error' else 'info' }}">{{ msg }}</div>
+  {% endfor %}
+
+  {# ── Load Data ────────────────────────────────────────────────────────── #}
+  <div class="panel">
+    <h3>Load Data</h3>
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="load">
+      <div class="row" style="margin-bottom:8px">
+        <label><input type="radio" name="load_mode" value="replace" checked> Replace existing data</label>
+        <label><input type="radio" name="load_mode" value="add"> Add to existing data</label>
+        <span style="color:#888;font-size:11px">({{ total }} record{{ 's' if total != 1 else '' }} currently loaded)</span>
+      </div>
+      <div class="row" style="align-items:flex-start">
+        <div class="col">
+          <label><b>Upload file (.json / .jsonl / .log / .txt):</b></label>
+          <input type="file" name="file" accept=".json,.jsonl,.log,.txt,.ndjson">
+        </div>
+        <div style="align-self:center;color:#999">— or —</div>
+        <div class="col" style="flex:1;min-width:280px">
+          <label><b>Paste JSON (one record per line):</b></label>
+          <textarea name="json_text" rows="5" style="width:100%"
+                    placeholder='{"timestamp": "2024-01-01T00:00:00", "level": "INFO", "msg": "hello"}'></textarea>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <button type="submit" class="primary">Load Data</button>
+      </div>
+    </form>
+  </div>
+
+  {% if all_fields %}
+
+  {# ── Fields ───────────────────────────────────────────────────────────── #}
+  <div class="panel">
+    <h3>Fields</h3>
+    <form method="post" id="fields-form">
+      <input type="hidden" name="action" value="fields">
+      <input type="hidden" name="field_order" id="field-order-input"
+             value="{{ all_fields | join(',') }}">
+      <p style="font-size:11px;color:#666;margin:0 0 8px">
+        ☰ Drag rows to reorder · Check/uncheck to show or hide a field.
+      </p>
+      <div id="fields-list">
+        {% for field in all_fields %}
+        <div class="field-row" data-field="{{ field }}">
+          <span class="drag-handle" title="Drag to reorder">☰</span>
+          <input type="checkbox" name="field_check" value="{{ field }}"
+                 id="fc_{{ loop.index }}"
+                 {% if field in included_fields %}checked{% endif %}>
+          <label for="fc_{{ loop.index }}" style="flex:1">{{ field }}</label>
+          {% if field in filters and filters[field].pattern %}
+          <span class="active-filter" title="Filter active">▼</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button type="submit" class="primary">Apply Field Settings</button>
+        <button type="button" onclick="selectAllFields(true)">Select All</button>
+        <button type="button" onclick="selectAllFields(false)">Deselect All</button>
+      </div>
+    </form>
+  </div>
+
+  {# ── View & Sort ──────────────────────────────────────────────────────── #}
+  <div class="panel">
+    <h3>View &amp; Sort</h3>
+    <form method="post">
+      <div class="row" style="margin-bottom:10px">
+        <b>Display as:</b>
+        <label><input type="radio" name="display_mode" value="columns"
+               {% if display_mode == 'columns' %}checked{% endif %}> Table / Columns</label>
+        <label><input type="radio" name="display_mode" value="lists"
+               {% if display_mode == 'lists' %}checked{% endif %}> Individual Cards</label>
+        <label><input type="radio" name="display_mode" value="raw"
+               {% if display_mode == 'raw' %}checked{% endif %}> Raw JSON</label>
+        <button type="submit" name="action" value="display">Apply</button>
+      </div>
+
+      <hr class="sep">
+
+      <div class="row">
+        <b>Sort by:</b>
+        <select name="sort_field">
+          <option value="">— choose field —</option>
+          {% for field in all_fields %}
+          <option value="{{ field }}">{{ field }}</option>
+          {% endfor %}
+        </select>
+        <label><input type="radio" name="sort_order" value="asc" checked> ↑ Ascending</label>
+        <label><input type="radio" name="sort_order" value="desc"> ↓ Descending</label>
+        <button type="submit" name="action" value="sort" class="primary">Sort</button>
+        {% if sort_keys %}
+        <button type="submit" name="action" value="clear_sort" class="danger">Clear Sort</button>
+        {% endif %}
+      </div>
+
+      {% if sort_keys %}
+      <div style="margin-top:8px;font-size:11px;color:#555">
+        <b>Active sort keys</b> (most recent = primary sort, earlier = tiebreakers):
+        {% for field, order in sort_keys %}
+        <span class="sort-badge">
+          {{ field }} {{ '↑' if order == 'asc' else '↓' }}
+          <span class="rank">#{{ loop.index }}</span>
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </form>
+  </div>
+
+  {# ── Filters ──────────────────────────────────────────────────────────── #}
+  <div class="panel">
+    <h3>Filters
+      {% if filters %}
+      <span style="font-size:11px;color:#2c7be5">({{ filters | length }} active)</span>
+      {% endif %}
+    </h3>
+    <form method="post">
+      <table style="border-collapse:collapse;width:100%">
+        <thead>
+          <tr style="font-size:11px;color:#555;border-bottom:1px solid #ddd">
+            <th style="padding:4px 8px;text-align:left;width:160px">Field</th>
+            <th style="padding:4px 8px;text-align:left">Regexp pattern</th>
+            <th style="padding:4px 8px;text-align:left">Mode</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for field in all_fields %}
+          {% set filt = filters.get(field, {}) %}
+          <tr style="border-bottom:1px solid #f0f0f0">
+            <td style="padding:3px 8px;font-weight:{% if filt.get('pattern') %}bold{% else %}normal{% endif %}">
+              {{ field }}
+            </td>
+            <td style="padding:3px 8px">
+              <input type="text" name="fpat_{{ field }}"
+                     value="{{ filt.get('pattern', '') }}"
+                     size="35" placeholder="e.g. ^ERROR|WARN">
+              {% if filter_errors.get(field) %}
+              <span class="filter-err">✗ {{ filter_errors[field] }}</span>
+              {% endif %}
+            </td>
+            <td style="padding:3px 8px">
+              <label>
+                <input type="radio" name="fmode_{{ field }}" value="include"
+                       {% if filt.get('mode', 'include') == 'include' %}checked{% endif %}>
+                Include matches
+              </label>
+              &nbsp;
+              <label>
+                <input type="radio" name="fmode_{{ field }}" value="exclude"
+                       {% if filt.get('mode') == 'exclude' %}checked{% endif %}>
+                Exclude matches
+              </label>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button type="submit" name="action" value="filter" class="primary">Apply Filters</button>
+        {% if filters %}
+        <button type="submit" name="action" value="clear_filters" class="danger">Clear All Filters</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  {# ── Data Display ─────────────────────────────────────────────────────── #}
+  <div class="panel">
+    <h3>
+      Data
+      <span style="font-size:11px;font-weight:normal;color:#666">
+        — showing {{ records | length }} record{{ 's' if records | length != 1 else '' }}
+        {% if records | length != total %} (filtered from {{ total }} total){% endif %}
+      </span>
+    </h3>
+
+    {% if not records %}
+      <p style="color:#888;font-style:italic">No records to display.</p>
+    {% elif display_mode == 'columns' %}
+      <div class="data-area">
+        <table class="data-table">
+          <thead>
+            <tr>
+              {% for field in included_fields %}
+              <th>{{ field }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in records %}
+            <tr>
+              {% for field in included_fields %}
+              <td>{{ rec.get(field, '') }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    {% elif display_mode == 'lists' %}
+      <div class="data-area">
+        {% for rec in records %}
+        <div class="card">
+          {% for field in included_fields %}
+          {% if field in rec %}
+          <div class="card-field">
+            <span class="card-key">{{ field }}:</span>
+            <span class="card-val">{{ rec[field] }}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+
+    {% elif display_mode == 'raw' %}
+      <div class="data-area">
+        {% for rec in records %}
+        <div class="raw-record">{{ rec | tojson }}</div>
+        {% endfor %}
+      </div>
+
+    {% endif %}
+  </div>
+
+  {% endif %}{# end if all_fields #}
+
+</div>{# end .container #}
+
+<script>
+/* ── Drag-and-drop field reordering ────────────────────────────────────── */
+(function () {
+  const list = document.getElementById('fields-list');
+  const orderInput = document.getElementById('field-order-input');
+  if (!list) return;
+
+  let dragging = null;
+
+  function refreshOrder() {
+    const names = Array.from(list.querySelectorAll('.field-row'))
+                       .map(r => r.dataset.field);
+    orderInput.value = names.join(',');
+  }
+
+  list.querySelectorAll('.field-row').forEach(function (row) {
+    row.setAttribute('draggable', 'true');
+
+    row.addEventListener('dragstart', function (e) {
+      dragging = row;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(function () { row.style.opacity = '0.5'; }, 0);
+    });
+
+    row.addEventListener('dragend', function () {
+      row.style.opacity = '';
+      list.querySelectorAll('.field-row').forEach(function (r) {
+        r.classList.remove('drag-over');
+      });
+      dragging = null;
+    });
+
+    row.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      list.querySelectorAll('.field-row').forEach(function (r) {
+        r.classList.remove('drag-over');
+      });
+      if (dragging && dragging !== row) {
+        row.classList.add('drag-over');
+      }
+    });
+
+    row.addEventListener('dragleave', function () {
+      row.classList.remove('drag-over');
+    });
+
+    row.addEventListener('drop', function (e) {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if (dragging && dragging !== row) {
+        const rows = Array.from(list.querySelectorAll('.field-row'));
+        const dragIdx = rows.indexOf(dragging);
+        const dropIdx = rows.indexOf(row);
+        if (dragIdx < dropIdx) {
+          list.insertBefore(dragging, row.nextSibling);
+        } else {
+          list.insertBefore(dragging, row);
+        }
+        refreshOrder();
+      }
+    });
+  });
+})();
+
+/* ── Select / deselect all fields ──────────────────────────────────────── */
+function selectAllFields(checked) {
+  document.querySelectorAll('#fields-list input[type=checkbox]')
+          .forEach(function (cb) { cb.checked = checked; });
+}
+</script>
+</body>
+</html>
