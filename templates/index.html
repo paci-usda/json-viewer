@@ -26,6 +26,7 @@
     .alert { padding: 8px 12px; border-radius: 3px; margin-bottom: 10px; font-size: 13px; }
     .alert-error { background: #fdd; border: 1px solid #f99; color: #900; }
     .alert-info  { background: #dfd; border: 1px solid #9c9; color: #060; }
+    .alert-warning { background: #fff5d6; border: 1px solid #e1bc4b; color: #7b5b00; }
 
     /* ── Buttons ────────────────────────────────────────────────────────── */
     button {
@@ -73,15 +74,37 @@
     .data-area { overflow: auto; max-height: 560px; }
 
     /* Table view */
-    table.data-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+    table.data-table { border-collapse: collapse; width: max-content; font-size: 12px; }
     table.data-table th, table.data-table td {
-      border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; white-space: pre-wrap;
+      border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; white-space: nowrap;
     }
     table.data-table thead th {
       background: #e4eaf5; position: sticky; top: 0; z-index: 1;
     }
     table.data-table tbody tr:nth-child(even) { background: #f7f9fc; }
     table.data-table tbody tr:hover { background: #eef3fb; }
+    .header-cell { display: flex; align-items: center; gap: 6px; position: relative; }
+    .header-sort-button {
+      border: none; background: transparent; padding: 0; font: inherit; font-weight: bold;
+      color: #223; cursor: pointer;
+    }
+    .header-sort-button:hover { color: #1a5fb4; text-decoration: underline; background: transparent; }
+    .header-menu-button {
+      border: none; background: transparent; padding: 0 2px; font-size: 12px; line-height: 1;
+    }
+    .header-menu-button:hover { background: transparent; color: #1a5fb4; }
+    .header-menu {
+      position: absolute; top: calc(100% + 4px); right: 0; min-width: 170px;
+      background: #fff; border: 1px solid #bbb; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.12);
+      padding: 4px; z-index: 5;
+    }
+    .header-menu-item {
+      display: block; width: 100%; text-align: left; border: none; background: transparent;
+      padding: 6px 8px; border-radius: 3px;
+    }
+    .header-menu-item:hover { background: #eef3fb; }
+    .header-menu-item[disabled] { color: #999; cursor: default; }
+    .sort-indicator, .truncate-indicator { font-size: 11px; color: #1a5fb4; }
 
     /* Card view */
     .card { border: 1px solid #ccc; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; background: #fafafa; }
@@ -101,6 +124,17 @@
     .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
     .col { display: flex; flex-direction: column; gap: 6px; }
     hr.sep { border: none; border-top: 1px solid #eee; margin: 8px 0; }
+    .hidden-form { display: none; }
+
+    /* ── Drawer controls ─────────────────────────────────────────────────── */
+    .drawer-shell { position: sticky; top: 0; z-index: 10; background: #f0f0f0; padding-bottom: 6px; }
+    .drawer-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .drawer-tab {
+      border-radius: 0 0 6px 6px; padding: 7px 12px; background: #dbe4ef; border-color: #aab7c6;
+    }
+    .drawer-tab.active { background: #2c7be5; color: #fff; border-color: #1a5fb4; }
+    .drawer-panel { display: none; margin-bottom: 8px; }
+    .drawer-panel.open { display: block; }
   </style>
 </head>
 <body>
@@ -109,173 +143,208 @@
 
   {# ── Flash messages ───────────────────────────────────────────────────── #}
   {% for category, msg in flashed %}
-  <div class="alert alert-{{ 'error' if category == 'error' else 'info' }}">{{ msg }}</div>
+  <div class="alert alert-{{ category if category in ['error', 'info', 'warning'] else 'info' }}">{{ msg }}</div>
   {% endfor %}
 
-  {# ── Load Data ────────────────────────────────────────────────────────── #}
-  <div class="panel">
-    <h3>Load Data</h3>
-    <form method="post" enctype="multipart/form-data">
-      <input type="hidden" name="action" value="load">
-      <div class="row" style="margin-bottom:8px">
-        <label><input type="radio" name="load_mode" value="replace" checked> Replace existing data</label>
-        <label><input type="radio" name="load_mode" value="add"> Add to existing data</label>
-        <span style="color:#888;font-size:11px">({{ total }} record{{ 's' if total != 1 else '' }} currently loaded)</span>
-      </div>
-      <div class="row" style="align-items:flex-start">
-        <div class="col">
-          <label><b>Upload file (.json / .jsonl / .log / .txt):</b></label>
-          <input type="file" name="file" accept=".json,.jsonl,.log,.txt,.ndjson">
-        </div>
-        <div style="align-self:center;color:#999">— or —</div>
-        <div class="col" style="flex:1;min-width:280px">
-          <label><b>Paste JSON (one record per line):</b></label>
-          <textarea name="json_text" rows="5" style="width:100%"
-                    placeholder='{"timestamp": "2024-01-01T00:00:00", "level": "INFO", "msg": "hello"}'></textarea>
-        </div>
-      </div>
-      <div style="margin-top:10px">
-        <button type="submit" class="primary">Load Data</button>
-      </div>
-    </form>
-  </div>
+  <div class="drawer-shell">
+    <div class="drawer-tabs">
+      <button type="button" class="drawer-tab active" data-drawer="load-data">Load Data</button>
+      {% if all_fields %}
+      <button type="button" class="drawer-tab" data-drawer="fields">Fields</button>
+      <button type="button" class="drawer-tab" data-drawer="view-sort">View &amp; Sort</button>
+      <button type="button" class="drawer-tab" data-drawer="filters">Filters</button>
+      {% endif %}
+    </div>
 
-  {% if all_fields %}
+    {# ── Load Data ────────────────────────────────────────────────────────── #}
+    <div class="panel drawer-panel open" data-drawer-panel="load-data">
+      <h3>Load Data</h3>
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="load">
+        <div class="row" style="margin-bottom:8px">
+          <label><input type="radio" name="load_mode" value="replace" checked> Replace existing data</label>
+          <label><input type="radio" name="load_mode" value="add"> Add to existing data</label>
+          <span style="color:#888;font-size:11px">({{ total }} record{{ 's' if total != 1 else '' }} currently loaded)</span>
+        </div>
+        <div class="row" style="align-items:flex-start">
+          <div class="col">
+            <label><b>Upload file(s) (.json / .jsonl / .log / .txt):</b></label>
+            <input type="file" name="files" accept=".json,.jsonl,.log,.txt,.ndjson" multiple>
+            <span style="color:#777;font-size:11px">You can select more than one file; repeated uploads will show a warning.</span>
+          </div>
+          <div style="align-self:center;color:#999">— or —</div>
+          <div class="col" style="flex:1;min-width:280px">
+            <label><b>Paste JSON (one record per line):</b></label>
+            <textarea name="json_text" rows="5" style="width:100%"
+                      placeholder='{"timestamp": "2024-01-01T00:00:00", "level": "INFO", "msg": "hello"}'></textarea>
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <button type="submit" class="primary">Load Data</button>
+        </div>
+      </form>
+    </div>
 
-  {# ── Fields ───────────────────────────────────────────────────────────── #}
-  <div class="panel">
-    <h3>Fields</h3>
-    <form method="post" id="fields-form">
-      <input type="hidden" name="action" value="fields">
-      <input type="hidden" name="field_order" id="field-order-input"
-             value="{{ all_fields | join(',') }}">
-      <p style="font-size:11px;color:#666;margin:0 0 8px">
-        ☰ Drag rows to reorder · Check/uncheck to show or hide a field.
-      </p>
-      <div id="fields-list">
-        {% for field in all_fields %}
-        <div class="field-row" data-field="{{ field }}">
-          <span class="drag-handle" title="Drag to reorder">☰</span>
-          <input type="checkbox" name="field_check" value="{{ field }}"
-                 id="fc_{{ loop.index }}"
-                 {% if field in included_fields %}checked{% endif %}>
-          <label for="fc_{{ loop.index }}" style="flex:1">{{ field }}</label>
-          {% if field in filters and filters[field].pattern %}
-          <span class="active-filter" title="Filter active">▼</span>
+    {% if all_fields %}
+
+    {# ── Fields ───────────────────────────────────────────────────────────── #}
+    <div class="panel drawer-panel" data-drawer-panel="fields">
+      <h3>Fields</h3>
+      <form method="post" id="fields-form">
+        <input type="hidden" name="action" value="fields">
+        <input type="hidden" name="field_order" id="field-order-input"
+               value="{{ all_fields | join(',') }}">
+        <p style="font-size:11px;color:#666;margin:0 0 8px">
+          ☰ Drag rows to reorder · Check/uncheck to show or hide a field.
+        </p>
+        <div id="fields-list">
+          {% for field in all_fields %}
+          <div class="field-row" data-field="{{ field }}">
+            <span class="drag-handle" title="Drag to reorder">☰</span>
+            <input type="checkbox" name="field_check" value="{{ field }}"
+                   id="fc_{{ loop.index }}"
+                   {% if field in included_fields %}checked{% endif %}>
+            <label for="fc_{{ loop.index }}" style="flex:1">{{ field }}</label>
+            {% if field in filters and filters[field].pattern %}
+            <span class="active-filter" title="Filter active">▼</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button type="submit" class="primary">Apply Field Settings</button>
+          <button type="button" onclick="selectAllFields(true)">Select All</button>
+          <button type="button" onclick="selectAllFields(false)">Deselect All</button>
+        </div>
+      </form>
+    </div>
+
+    {# ── View & Sort ──────────────────────────────────────────────────────── #}
+    <div class="panel drawer-panel" data-drawer-panel="view-sort">
+      <h3>View &amp; Sort</h3>
+      <form method="post">
+        <div class="row" style="margin-bottom:10px">
+          <b>Display as:</b>
+          <label><input type="radio" name="display_mode" value="columns"
+                 {% if display_mode == 'columns' %}checked{% endif %}> Table / Columns</label>
+          <label><input type="radio" name="display_mode" value="lists"
+                 {% if display_mode == 'lists' %}checked{% endif %}> Individual Cards</label>
+          <label><input type="radio" name="display_mode" value="raw"
+                 {% if display_mode == 'raw' %}checked{% endif %}> Raw JSON</label>
+          <button type="submit" name="action" value="display">Apply</button>
+        </div>
+
+        <hr class="sep">
+
+        <div class="row">
+          <b>Sort by:</b>
+          <select name="sort_field">
+            <option value="">— choose field —</option>
+            {% for field in all_fields %}
+            <option value="{{ field }}" {% if field == primary_sort_field %}selected{% endif %}>{{ field }}</option>
+            {% endfor %}
+          </select>
+          <label><input type="radio" name="sort_order" value="asc" {% if primary_sort_order == 'asc' %}checked{% endif %}> ↑ Ascending</label>
+          <label><input type="radio" name="sort_order" value="desc" {% if primary_sort_order == 'desc' %}checked{% endif %}> ↓ Descending</label>
+          <button type="submit" name="action" value="sort" class="primary">Sort</button>
+          {% if sort_keys %}
+          <button type="submit" name="action" value="clear_sort" class="danger">Clear Sort</button>
           {% endif %}
         </div>
-        {% endfor %}
-      </div>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <button type="submit" class="primary">Apply Field Settings</button>
-        <button type="button" onclick="selectAllFields(true)">Select All</button>
-        <button type="button" onclick="selectAllFields(false)">Deselect All</button>
-      </div>
-    </form>
-  </div>
 
-  {# ── View & Sort ──────────────────────────────────────────────────────── #}
-  <div class="panel">
-    <h3>View &amp; Sort</h3>
-    <form method="post">
-      <div class="row" style="margin-bottom:10px">
-        <b>Display as:</b>
-        <label><input type="radio" name="display_mode" value="columns"
-               {% if display_mode == 'columns' %}checked{% endif %}> Table / Columns</label>
-        <label><input type="radio" name="display_mode" value="lists"
-               {% if display_mode == 'lists' %}checked{% endif %}> Individual Cards</label>
-        <label><input type="radio" name="display_mode" value="raw"
-               {% if display_mode == 'raw' %}checked{% endif %}> Raw JSON</label>
-        <button type="submit" name="action" value="display">Apply</button>
-      </div>
-
-      <hr class="sep">
-
-      <div class="row">
-        <b>Sort by:</b>
-        <select name="sort_field">
-          <option value="">— choose field —</option>
-          {% for field in all_fields %}
-          <option value="{{ field }}">{{ field }}</option>
-          {% endfor %}
-        </select>
-        <label><input type="radio" name="sort_order" value="asc" checked> ↑ Ascending</label>
-        <label><input type="radio" name="sort_order" value="desc"> ↓ Descending</label>
-        <button type="submit" name="action" value="sort" class="primary">Sort</button>
         {% if sort_keys %}
-        <button type="submit" name="action" value="clear_sort" class="danger">Clear Sort</button>
-        {% endif %}
-      </div>
-
-      {% if sort_keys %}
-      <div style="margin-top:8px;font-size:11px;color:#555">
-        <b>Active sort keys</b> (most recent = primary sort, earlier = tiebreakers):
-        {% for field, order in sort_keys %}
-        <span class="sort-badge">
-          {{ field }} {{ '↑' if order == 'asc' else '↓' }}
-          <span class="rank">#{{ loop.index }}</span>
-        </span>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </form>
-  </div>
-
-  {# ── Filters ──────────────────────────────────────────────────────────── #}
-  <div class="panel">
-    <h3>Filters
-      {% if filters %}
-      <span style="font-size:11px;color:#2c7be5">({{ filters | length }} active)</span>
-      {% endif %}
-    </h3>
-    <form method="post">
-      <table style="border-collapse:collapse;width:100%">
-        <thead>
-          <tr style="font-size:11px;color:#555;border-bottom:1px solid #ddd">
-            <th style="padding:4px 8px;text-align:left;width:160px">Field</th>
-            <th style="padding:4px 8px;text-align:left">Regexp pattern</th>
-            <th style="padding:4px 8px;text-align:left">Mode</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for field in all_fields %}
-          {% set filt = filters.get(field, {}) %}
-          <tr style="border-bottom:1px solid #f0f0f0">
-            <td style="padding:3px 8px;font-weight:{% if filt.get('pattern') %}bold{% else %}normal{% endif %}">
-              {{ field }}
-            </td>
-            <td style="padding:3px 8px">
-              <input type="text" name="fpat_{{ field }}"
-                     value="{{ filt.get('pattern', '') }}"
-                     size="35" placeholder="e.g. ^ERROR|WARN">
-              {% if filter_errors.get(field) %}
-              <span class="filter-err">✗ {{ filter_errors[field] }}</span>
-              {% endif %}
-            </td>
-            <td style="padding:3px 8px">
-              <label>
-                <input type="radio" name="fmode_{{ field }}" value="include"
-                       {% if filt.get('mode', 'include') == 'include' %}checked{% endif %}>
-                Include matches
-              </label>
-              &nbsp;
-              <label>
-                <input type="radio" name="fmode_{{ field }}" value="exclude"
-                       {% if filt.get('mode') == 'exclude' %}checked{% endif %}>
-                Exclude matches
-              </label>
-            </td>
-          </tr>
+        <div style="margin-top:8px;font-size:11px;color:#555">
+          <b>Active sort keys</b> (most recent = primary sort, earlier = tiebreakers):
+          {% for field, order in sort_keys %}
+          <span class="sort-badge">
+            {{ field }} {{ '↑' if order == 'asc' else '↓' }}
+            <span class="rank">#{{ loop.index }}</span>
+          </span>
           {% endfor %}
-        </tbody>
-      </table>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <button type="submit" name="action" value="filter" class="primary">Apply Filters</button>
-        {% if filters %}
-        <button type="submit" name="action" value="clear_filters" class="danger">Clear All Filters</button>
+        </div>
         {% endif %}
-      </div>
-    </form>
+
+        <hr class="sep">
+
+        <div class="row">
+          <b>Download displayed data as:</b>
+          <select name="export_format">
+            <option value="csv">CSV</option>
+            <option value="tsv">Tab-separated</option>
+            <option value="json">JSON</option>
+          </select>
+          <button type="submit" name="action" value="download" class="primary">Download</button>
+        </div>
+
+        {% if truncate_limits %}
+        <div style="margin-top:8px;font-size:11px;color:#555">
+          <b>Active truncation</b>:
+          {% for field, limit in truncate_limits.items() %}
+          <span class="sort-badge">{{ field }} …{{ limit }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </form>
+    </div>
+
+    {# ── Filters ──────────────────────────────────────────────────────────── #}
+    <div class="panel drawer-panel" data-drawer-panel="filters">
+      <h3>Filters
+        {% if filters %}
+        <span style="font-size:11px;color:#2c7be5">({{ filters | length }} active)</span>
+        {% endif %}
+      </h3>
+      <form method="post">
+        <table style="border-collapse:collapse;width:100%">
+          <thead>
+            <tr style="font-size:11px;color:#555;border-bottom:1px solid #ddd">
+              <th style="padding:4px 8px;text-align:left;width:160px">Field</th>
+              <th style="padding:4px 8px;text-align:left">Regexp pattern</th>
+              <th style="padding:4px 8px;text-align:left">Mode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for field in all_fields %}
+            {% set filt = filters.get(field, {}) %}
+            <tr style="border-bottom:1px solid #f0f0f0">
+              <td style="padding:3px 8px;font-weight:{% if filt.get('pattern') %}bold{% else %}normal{% endif %}">
+                {{ field }}
+              </td>
+              <td style="padding:3px 8px">
+                <input type="text" name="fpat_{{ field }}"
+                       value="{{ filt.get('pattern', '') }}"
+                       size="35" placeholder="e.g. ^ERROR|WARN">
+                {% if filter_errors.get(field) %}
+                <span class="filter-err">✗ {{ filter_errors[field] }}</span>
+                {% endif %}
+              </td>
+              <td style="padding:3px 8px">
+                <label>
+                  <input type="radio" name="fmode_{{ field }}" value="include"
+                         {% if filt.get('mode', 'include') == 'include' %}checked{% endif %}>
+                  Include matches
+                </label>
+                &nbsp;
+                <label>
+                  <input type="radio" name="fmode_{{ field }}" value="exclude"
+                         {% if filt.get('mode') == 'exclude' %}checked{% endif %}>
+                  Exclude matches
+                </label>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button type="submit" name="action" value="filter" class="primary">Apply Filters</button>
+          {% if filters %}
+          <button type="submit" name="action" value="clear_filters" class="danger">Clear All Filters</button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+
+    {% endif %}{# end if all_fields #}
   </div>
 
   {# ── Data Display ─────────────────────────────────────────────────────── #}
@@ -296,7 +365,30 @@
           <thead>
             <tr>
               {% for field in included_fields %}
-              <th>{{ field }}</th>
+              <th>
+                <div class="header-cell">
+                  <button type="button"
+                          class="header-sort-button"
+                          data-sort-field="{{ field }}"
+                          data-sort-order="{{ 'desc' if primary_sort_field == field and primary_sort_order == 'asc' else 'asc' }}">
+                    {{ field }}
+                    {% if primary_sort_field == field %}
+                    <span class="sort-indicator">{{ '↑' if primary_sort_order == 'asc' else '↓' }}</span>
+                    {% endif %}
+                    {% if truncate_limits.get(field) %}
+                    <span class="truncate-indicator" title="Truncated to {{ truncate_limits[field] }} characters">…{{ truncate_limits[field] }}</span>
+                    {% endif %}
+                  </button>
+                  <button type="button" class="header-menu-button" data-header-menu="{{ field }}" title="Column actions">▾</button>
+                  <div class="header-menu" data-header-menu-panel="{{ field }}" hidden>
+                    <button type="button" class="header-menu-item" data-sort-field="{{ field }}" data-sort-order="asc">Sort Ascending</button>
+                    <button type="button" class="header-menu-item" data-sort-field="{{ field }}" data-sort-order="desc">Sort Descending</button>
+                    <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-limit="50">Truncate to 50</button>
+                    <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-prompt="1">Truncate...</button>
+                    <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-clear="1" {% if not truncate_limits.get(field) %}disabled{% endif %}>Clear Truncate</button>
+                  </div>
+                </div>
+              </th>
               {% endfor %}
             </tr>
           </thead>
@@ -304,7 +396,7 @@
             {% for rec in records %}
             <tr>
               {% for field in included_fields %}
-              <td>{{ rec.get(field, '') }}</td>
+              <td title="{{ display_value(rec.get(field, '')) }}">{{ display_value(rec.get(field, ''), truncate_limits.get(field)) }}</td>
               {% endfor %}
             </tr>
             {% endfor %}
@@ -320,7 +412,7 @@
           {% if field in rec %}
           <div class="card-field">
             <span class="card-key">{{ field }}:</span>
-            <span class="card-val">{{ rec[field] }}</span>
+            <span class="card-val">{{ display_value(rec[field]) }}</span>
           </div>
           {% endif %}
           {% endfor %}
@@ -338,11 +430,65 @@
     {% endif %}
   </div>
 
-  {% endif %}{# end if all_fields #}
-
 </div>{# end .container #}
 
+<form method="post" id="header-sort-form" class="hidden-form">
+  <input type="hidden" name="action" value="sort">
+  <input type="hidden" name="sort_field" id="header-sort-field">
+  <input type="hidden" name="sort_order" id="header-sort-order">
+</form>
+
+<form method="post" id="truncate-form" class="hidden-form">
+  <input type="hidden" name="action" value="truncate">
+  <input type="hidden" name="truncate_field" id="truncate-field">
+  <input type="hidden" name="truncate_limit" id="truncate-limit">
+  <input type="hidden" name="truncate_clear" id="truncate-clear" value="0">
+</form>
+
 <script>
+/* ── Drawer tabs ────────────────────────────────────────────────────────── */
+(function () {
+  const tabs = Array.from(document.querySelectorAll('.drawer-tab'));
+  const panels = Array.from(document.querySelectorAll('.drawer-panel'));
+  if (!tabs.length) return;
+
+  const storageKey = 'json-viewer-open-drawers';
+
+  function syncTabs() {
+    tabs.forEach(function (tab) {
+      const panel = document.querySelector('[data-drawer-panel="' + tab.dataset.drawer + '"]');
+      tab.classList.toggle('active', !!panel && panel.classList.contains('open'));
+    });
+  }
+
+  function saveState() {
+    const openDrawers = panels
+      .filter(function (panel) { return panel.classList.contains('open'); })
+      .map(function (panel) { return panel.dataset.drawerPanel; });
+    window.localStorage.setItem(storageKey, JSON.stringify(openDrawers));
+  }
+
+  const saved = window.localStorage.getItem(storageKey);
+  if (saved) {
+    const openDrawers = new Set(JSON.parse(saved));
+    panels.forEach(function (panel) {
+      panel.classList.toggle('open', openDrawers.has(panel.dataset.drawerPanel));
+    });
+  }
+
+  syncTabs();
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      const panel = document.querySelector('[data-drawer-panel="' + tab.dataset.drawer + '"]');
+      if (!panel) return;
+      panel.classList.toggle('open');
+      syncTabs();
+      saveState();
+    });
+  });
+})();
+
 /* ── Drag-and-drop field reordering ────────────────────────────────────── */
 (function () {
   const list = document.getElementById('fields-list');
@@ -412,6 +558,70 @@ function selectAllFields(checked) {
   document.querySelectorAll('#fields-list input[type=checkbox]')
           .forEach(function (cb) { cb.checked = checked; });
 }
+
+/* ── Header sort / menu / truncate actions ─────────────────────────────── */
+(function () {
+  const sortForm = document.getElementById('header-sort-form');
+  const sortField = document.getElementById('header-sort-field');
+  const sortOrder = document.getElementById('header-sort-order');
+  const truncateForm = document.getElementById('truncate-form');
+  const truncateField = document.getElementById('truncate-field');
+  const truncateLimit = document.getElementById('truncate-limit');
+  const truncateClear = document.getElementById('truncate-clear');
+
+  if (!sortForm || !truncateForm) return;
+
+  function closeMenus() {
+    document.querySelectorAll('.header-menu').forEach(function (menu) {
+      menu.hidden = true;
+    });
+  }
+
+  document.querySelectorAll('.header-sort-button, .header-menu-item[data-sort-field]').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      sortField.value = button.dataset.sortField;
+      sortOrder.value = button.dataset.sortOrder || 'asc';
+      sortForm.submit();
+    });
+  });
+
+  document.querySelectorAll('.header-menu-button').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const menu = document.querySelector('[data-header-menu-panel="' + button.dataset.headerMenu + '"]');
+      const willOpen = menu && menu.hidden;
+      closeMenus();
+      if (menu) {
+        menu.hidden = !willOpen;
+      }
+    });
+  });
+
+  document.querySelectorAll('.header-menu-item[data-truncate-field]').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      if (button.disabled) return;
+      truncateField.value = button.dataset.truncateField;
+      truncateClear.value = button.dataset.truncateClear === '1' ? '1' : '0';
+      if (button.dataset.truncatePrompt === '1') {
+        const answer = window.prompt('Truncate displayed values to how many characters?', '50');
+        if (answer === null) {
+          closeMenus();
+          return;
+        }
+        truncateLimit.value = answer;
+      } else {
+        truncateLimit.value = button.dataset.truncateLimit || '';
+      }
+      closeMenus();
+      truncateForm.submit();
+    });
+  });
+
+  document.addEventListener('click', closeMenus);
+})();
 </script>
 </body>
 </html>

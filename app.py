@@ -7,10 +7,21 @@ Usage:
     # then open http://localhost:5000 in your browser
 """
 
+import csv
+import hashlib
+import io
 import json
 import re
 
-from flask import Flask, flash, get_flashed_messages, redirect, render_template, request
+from flask import (
+    Flask,
+    flash,
+    get_flashed_messages,
+    make_response,
+    redirect,
+    render_template,
+    request,
+)
 
 app = Flask(__name__)
 app.secret_key = "json-viewer-local"  # only needed for flash messages
@@ -25,6 +36,8 @@ _included_fields: list = []   # ordered subset of fields to display
 _display_mode: str = "columns"  # "columns" | "lists" | "raw"
 _sort_keys: list = []         # [[field, "asc"|"desc"], …] – newest-first
 _filters: dict = {}           # field → {"pattern": str, "mode": "include"|"exclude"}
+_truncate_limits: dict = {}   # field → max displayed chars
+_uploaded_files: dict = {}    # sha256 → set(filename)
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +100,23 @@ def _compute_display(records: list) -> tuple[list, dict]:
     return out, errors
 
 
+def _stringify_value(value) -> str:
+    """Return a readable string for a record value."""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True)
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _display_value(value, limit: int | None = None) -> str:
+    """Return a display string, optionally truncated."""
+    text = _stringify_value(value)
+    if limit and limit > 0 and len(text) > limit:
+        return f"{text[:limit]}…"
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
@@ -94,7 +124,7 @@ def _compute_display(records: list) -> tuple[list, dict]:
 @app.route("/", methods=["GET", "POST"])
 def index():
     global _records, _all_fields, _included_fields
-    global _display_mode, _sort_keys, _filters
+    global _display_mode, _sort_keys, _filters, _truncate_limits
 
     if request.method == "POST":
         action = request.form.get("action", "")
@@ -102,23 +132,41 @@ def index():
         # ── Load data ────────────────────────────────────────────────────────
         if action == "load":
             load_mode = request.form.get("load_mode", "replace")
-            raw = ""
-            uploaded = request.files.get("file")
-            if uploaded and uploaded.filename:
-                raw = uploaded.read().decode("utf-8", errors="replace")
-            else:
-                raw = request.form.get("json_text", "")
+            raw_sources: list[tuple[str, str]] = []
+            duplicate_uploads: list[str] = []
+            uploads = [f for f in request.files.getlist("files") if f and f.filename]
+            if not uploads:
+                uploaded = request.files.get("file")
+                if uploaded and uploaded.filename:
+                    uploads = [uploaded]
+
+            for uploaded in uploads:
+                data = uploaded.read()
+                digest = hashlib.sha256(data).hexdigest()
+                previous_names = _uploaded_files.get(digest)
+                if previous_names:
+                    duplicate_uploads.append(uploaded.filename)
+                    previous_names.add(uploaded.filename)
+                else:
+                    _uploaded_files[digest] = {uploaded.filename}
+                raw_sources.append(
+                    (uploaded.filename or "Uploaded file", data.decode("utf-8", errors="replace"))
+                )
+
+            if not raw_sources:
+                raw_sources.append(("Pasted text", request.form.get("json_text", "")))
 
             new_recs: list = []
             parse_errors: list = []
-            for i, line in enumerate(raw.splitlines(), 1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    new_recs.append(json.loads(line))
-                except json.JSONDecodeError as exc:
-                    parse_errors.append(f"Line {i}: {exc}")
+            for source_name, raw in raw_sources:
+                for i, line in enumerate(raw.splitlines(), 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        new_recs.append(json.loads(line))
+                    except json.JSONDecodeError as exc:
+                        parse_errors.append(f"{source_name} line {i}: {exc}")
 
             if parse_errors:
                 # Report all parse errors; still load any records that did parse
@@ -127,6 +175,12 @@ def index():
                     summary += f" … and {len(parse_errors) - 5} more error(s)"
                 flash(f"Parse error(s) – {summary}", "error")
 
+            if duplicate_uploads:
+                summary = ", ".join(duplicate_uploads[:5])
+                if len(duplicate_uploads) > 5:
+                    summary += f" … and {len(duplicate_uploads) - 5} more"
+                flash(f"Already uploaded before: {summary}", "warning")
+
             if new_recs:
                 if load_mode == "replace":
                     _records = []
@@ -134,6 +188,7 @@ def index():
                     _included_fields = []
                     _sort_keys = []
                     _filters = {}
+                    _truncate_limits = {}
                 _records.extend(new_recs)
                 _refresh_fields(new_recs)
                 flash(
@@ -171,6 +226,24 @@ def index():
         elif action == "clear_sort":
             _sort_keys = []
 
+        # ── Column truncation ────────────────────────────────────────────────
+        elif action == "truncate":
+            field = request.form.get("truncate_field", "").strip()
+            clear = request.form.get("truncate_clear") == "1"
+            if field:
+                if clear:
+                    _truncate_limits.pop(field, None)
+                else:
+                    raw_limit = request.form.get("truncate_limit", "").strip()
+                    try:
+                        limit = int(raw_limit)
+                        if limit < 1:
+                            raise ValueError
+                    except ValueError:
+                        flash("Truncate limit must be a positive whole number.", "error")
+                    else:
+                        _truncate_limits[field] = limit
+
         # ── Apply filters ────────────────────────────────────────────────────
         elif action == "filter":
             _filters = {}
@@ -184,11 +257,49 @@ def index():
         elif action == "clear_filters":
             _filters = {}
 
+        # ── Download displayed data ──────────────────────────────────────────
+        elif action == "download":
+            export_format = request.form.get("export_format", "json")
+            display_records, _ = _compute_display(_records)
+            export_fields = _included_fields or _all_fields
+            if export_format == "json":
+                payload = json.dumps(display_records, indent=2)
+                mimetype = "application/json"
+                extension = "json"
+            elif export_format in {"csv", "tsv"}:
+                delimiter = "," if export_format == "csv" else "\t"
+                payload_buffer = io.StringIO(newline="")
+                writer = csv.writer(payload_buffer, delimiter=delimiter)
+                writer.writerow(export_fields)
+                for rec in display_records:
+                    writer.writerow(
+                        [_stringify_value(rec.get(field, "")) for field in export_fields]
+                    )
+                payload = payload_buffer.getvalue()
+                mimetype = (
+                    "text/csv"
+                    if export_format == "csv"
+                    else "text/tab-separated-values"
+                )
+                extension = export_format
+            else:
+                flash("Unknown download format requested.", "error")
+                return redirect("/")
+
+            response = make_response(payload)
+            response.headers["Content-Type"] = f"{mimetype}; charset=utf-8"
+            response.headers["Content-Disposition"] = (
+                f'attachment; filename="json-viewer-export.{extension}"'
+            )
+            return response
+
         return redirect("/")
 
     # GET – render
     display_records, filter_errors = _compute_display(_records)
     flashed = get_flashed_messages(with_categories=True)
+    primary_sort_field = _sort_keys[0][0] if _sort_keys else ""
+    primary_sort_order = _sort_keys[0][1] if _sort_keys else "asc"
 
     return render_template(
         "index.html",
@@ -198,8 +309,12 @@ def index():
         included_fields=_included_fields,
         display_mode=_display_mode,
         sort_keys=_sort_keys,
+        primary_sort_field=primary_sort_field,
+        primary_sort_order=primary_sort_order,
         filters=_filters,
         filter_errors=filter_errors,
+        truncate_limits=_truncate_limits,
+        display_value=_display_value,
         flashed=flashed,
     )
 
