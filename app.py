@@ -37,8 +37,10 @@ _display_mode: str = "columns"  # "columns" | "lists" | "raw"
 _sort_keys: list = []         # [[field, "asc"|"desc"], …] – newest-first
 _filters: dict = {}           # field → {"pattern": str, "mode": "include"|"exclude"}
 _truncate_limits: dict = {}   # field → max displayed chars
+_column_widths: dict = {}     # field → max display width in chars
 _uploaded_files: dict = {}    # sha256 → set(filename)
 _default_truncate_limit: int = 50
+_default_column_width: int = 100
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +120,17 @@ def _display_value(value, limit: int | None = None) -> str:
     return text
 
 
+def _parse_positive_int(raw_value: str) -> int | None:
+    """Return a positive integer from form input, or None if blank."""
+    text = raw_value.strip()
+    if not text:
+        return None
+    value = int(text)
+    if value < 1:
+        raise ValueError
+    return value
+
+
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
@@ -125,7 +138,7 @@ def _display_value(value, limit: int | None = None) -> str:
 @app.route("/", methods=["GET", "POST"])
 def index():
     global _records, _all_fields, _included_fields
-    global _display_mode, _sort_keys, _filters, _truncate_limits
+    global _display_mode, _sort_keys, _filters, _truncate_limits, _column_widths
 
     if request.method == "POST":
         action = request.form.get("action", "")
@@ -190,6 +203,7 @@ def index():
                     _sort_keys = []
                     _filters = {}
                     _truncate_limits = {}
+                    _column_widths = {}
                 _records.extend(new_recs)
                 _refresh_fields(new_recs)
                 flash(
@@ -208,6 +222,45 @@ def index():
             else:
                 ordered = list(_all_fields)
             _included_fields = [f for f in ordered if f in checked]
+            next_truncate_limits: dict = {}
+            next_column_widths: dict = {}
+            invalid_truncates: list[str] = []
+            invalid_widths: list[str] = []
+            for field in _all_fields:
+                try:
+                    truncate_value = _parse_positive_int(
+                        request.form.get(f"field_truncate_{field}", "")
+                    )
+                except ValueError:
+                    invalid_truncates.append(field)
+                else:
+                    if truncate_value is not None:
+                        next_truncate_limits[field] = truncate_value
+
+                try:
+                    width_value = _parse_positive_int(
+                        request.form.get(f"field_width_{field}", "")
+                    )
+                except ValueError:
+                    invalid_widths.append(field)
+                else:
+                    if width_value is not None:
+                        next_column_widths[field] = width_value
+
+            _truncate_limits = next_truncate_limits
+            _column_widths = next_column_widths
+            if invalid_truncates:
+                flash(
+                    "Truncate Display values must be positive whole numbers: "
+                    + ", ".join(invalid_truncates[:5]),
+                    "error",
+                )
+            if invalid_widths:
+                flash(
+                    "Width values must be positive whole numbers: "
+                    + ", ".join(invalid_widths[:5]),
+                    "error",
+                )
 
         # ── Display mode ─────────────────────────────────────────────────────
         elif action == "display":
@@ -237,8 +290,8 @@ def index():
                 else:
                     raw_limit = request.form.get("truncate_limit", "").strip()
                     try:
-                        limit = int(raw_limit)
-                        if limit < 1:
+                        limit = _parse_positive_int(raw_limit)
+                        if limit is None:
                             raise ValueError
                     except ValueError:
                         flash("Truncate limit must be a positive whole number.", "error")
@@ -315,7 +368,9 @@ def index():
         filters=_filters,
         filter_errors=filter_errors,
         truncate_limits=_truncate_limits,
+        column_widths=_column_widths,
         default_truncate_limit=_default_truncate_limit,
+        default_column_width=_default_column_width,
         display_value=_display_value,
         flashed=flashed,
     )

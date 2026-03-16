@@ -14,6 +14,7 @@ class JsonViewerTestCase(unittest.TestCase):
         viewer_app._sort_keys = []
         viewer_app._filters = {}
         viewer_app._truncate_limits = {}
+        viewer_app._column_widths = {}
         viewer_app._uploaded_files = {}
         self.client = viewer_app.app.test_client()
 
@@ -82,36 +83,79 @@ class JsonViewerTestCase(unittest.TestCase):
                 self.assertIn(header_row, response.data)
                 self.assertIn(sample_row, response.data)
 
-    def test_sort_and_truncate_state_are_reflected_in_ui(self):
+    def test_field_settings_update_width_and_truncate_ui_state(self):
         self.client.post(
             "/",
             data={
                 "action": "load",
                 "load_mode": "replace",
-                "json_text": '{"name":"Alpha","msg":"alphabet soup"}\n{"name":"Beta","msg":"beta test"}',
+                "json_text": '{"name":"Alpha","msg":"alphabet soup and a very long value that should wrap after a configured width"}\n{"name":"Beta","msg":"beta test"}',
             },
             follow_redirects=True,
         )
 
-        self.client.post(
-            "/",
-            data={"action": "sort", "sort_field": "name", "sort_order": "desc"},
-            follow_redirects=True,
-        )
         response = self.client.post(
             "/",
-            data={"action": "truncate", "truncate_field": "msg", "truncate_limit": "5"},
+            data={
+                "action": "fields",
+                "field_order": "name,msg",
+                "field_check": ["name", "msg"],
+                "field_width_name": "",
+                "field_truncate_name": "",
+                "field_width_msg": "20",
+                "field_truncate_msg": "5",
+            },
             follow_redirects=True,
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'<option value="name" selected>', response.data)
-        self.assertIn(b'name \xe2\x86\x93', response.data)
         self.assertIn(b'Active truncation', response.data)
+        self.assertIn(b'Active widths', response.data)
         self.assertIn(b'msg \xe2\x80\xa65', response.data)
+        self.assertIn(b'msg 20ch', response.data)
         self.assertIn(b'Truncate to 50', response.data)
+        self.assertIn(b'name="field_width_msg" value="20"', response.data)
+        self.assertIn(b'name="field_truncate_msg" value="5"', response.data)
+        self.assertIn(b'title="Column actions"', response.data)
+        self.assertIn(b'class="header-menu-toggle"', response.data)
+        self.assertIn(b'width:100ch;max-width:100ch', response.data)
+        self.assertIn(b'width:20ch;max-width:20ch', response.data)
         self.assertIn(b'alpha\xe2\x80\xa6', response.data)
-        self.assertLess(response.data.index(b'Beta'), response.data.index(b'Alpha'))
+
+    def test_invalid_field_settings_show_validation_errors(self):
+        self.client.post(
+            "/",
+            data={
+                "action": "load",
+                "load_mode": "replace",
+                "json_text": '{"name":"Alpha","msg":"alphabet soup"}',
+            },
+            follow_redirects=True,
+        )
+
+        response = self.client.post(
+            "/",
+            data={
+                "action": "fields",
+                "field_order": "name,msg",
+                "field_check": ["name", "msg"],
+                "field_width_name": "0",
+                "field_truncate_name": "abc",
+                "field_width_msg": "",
+                "field_truncate_msg": "",
+            },
+            follow_redirects=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            b"Truncate Display values must be positive whole numbers: name",
+            response.data,
+        )
+        self.assertIn(
+            b"Width values must be positive whole numbers: name",
+            response.data,
+        )
 
 
 if __name__ == "__main__":

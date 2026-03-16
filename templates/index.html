@@ -74,25 +74,24 @@
     .data-area { overflow: auto; max-height: 560px; }
 
     /* Table view */
-    table.data-table { border-collapse: collapse; width: max-content; font-size: 12px; }
+    table.data-table { border-collapse: collapse; width: auto; font-size: 12px; max-width: 100%; }
     table.data-table th, table.data-table td {
-      border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; white-space: nowrap;
+      border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; white-space: pre-wrap;
+      word-break: break-word; overflow-wrap: anywhere; max-width: 100ch;
     }
     table.data-table thead th {
       background: #e4eaf5; position: sticky; top: 0; z-index: 1;
     }
     table.data-table tbody tr:nth-child(even) { background: #f7f9fc; }
     table.data-table tbody tr:hover { background: #eef3fb; }
-    .header-cell { display: flex; align-items: center; gap: 6px; position: relative; }
-    .header-sort-button {
+    .header-cell { position: relative; min-width: 100%; }
+    .header-menu-toggle {
       border: none; background: transparent; padding: 0; font: inherit; font-weight: bold;
-      color: #223; cursor: pointer;
+      color: #223; cursor: pointer; width: 100%; text-align: left;
+      display: flex; align-items: center; gap: 6px; justify-content: space-between;
     }
-    .header-sort-button:hover { color: #1a5fb4; text-decoration: underline; background: transparent; }
-    .header-menu-button {
-      border: none; background: transparent; padding: 0 2px; font-size: 12px; line-height: 1;
-    }
-    .header-menu-button:hover { background: transparent; color: #1a5fb4; }
+    .header-menu-toggle:hover { color: #1a5fb4; text-decoration: underline; background: transparent; }
+    .header-label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
     .header-menu {
       position: absolute; top: calc(100% + 4px); right: 0; min-width: 170px;
       background: #fff; border: 1px solid #bbb; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.12);
@@ -197,19 +196,31 @@
         <input type="hidden" name="field_order" id="field-order-input"
                value="{{ all_fields | join(',') }}">
         <p style="font-size:11px;color:#666;margin:0 0 8px">
-          ☰ Drag rows to reorder · Check/uncheck to show or hide a field.
+          ☰ Drag rows to reorder · Check/uncheck to show or hide a field · Width defaults to {{ default_column_width }} if blank.
         </p>
         <div id="fields-list">
           {% for field in all_fields %}
-          <div class="field-row" data-field="{{ field }}">
-            <span class="drag-handle" title="Drag to reorder">☰</span>
+          <div class="field-row" data-field="{{ field }}" style="align-items:flex-start">
+            <span class="drag-handle" title="Drag to reorder" style="padding-top:4px">☰</span>
             <input type="checkbox" name="field_check" value="{{ field }}"
                    id="fc_{{ loop.index }}"
                    {% if field in included_fields %}checked{% endif %}>
-            <label for="fc_{{ loop.index }}" style="flex:1">{{ field }}</label>
-            {% if field in filters and filters[field].pattern %}
-            <span class="active-filter" title="Filter active">▼</span>
-            {% endif %}
+            <div class="col" style="flex:1;min-width:0">
+              <label for="fc_{{ loop.index }}" style="flex:1">{{ field }}</label>
+              <div class="row" style="align-items:flex-start;gap:12px">
+                <label class="col" style="gap:2px">
+                  <span style="font-size:11px;color:#666">Width</span>
+                  <input type="text" name="field_width_{{ field }}" value="{{ column_widths.get(field, '') }}" size="8" placeholder="{{ default_column_width }}">
+                </label>
+                <label class="col" style="gap:2px">
+                  <span style="font-size:11px;color:#666">Truncate Display</span>
+                  <input type="text" name="field_truncate_{{ field }}" value="{{ truncate_limits.get(field, '') }}" size="8" placeholder="blank = none">
+                </label>
+                {% if field in filters and filters[field].pattern %}
+                <span class="active-filter" title="Filter active" style="padding-top:18px">▼</span>
+                {% endif %}
+              </div>
+            </div>
           </div>
           {% endfor %}
         </div>
@@ -278,12 +289,24 @@
           <button type="submit" name="action" value="download" class="primary">Download</button>
         </div>
 
-        {% if truncate_limits %}
+        {% if truncate_limits or column_widths %}
         <div style="margin-top:8px;font-size:11px;color:#555">
-          <b>Active truncation</b>:
-          {% for field, limit in truncate_limits.items() %}
-          <span class="sort-badge">{{ field }} …{{ limit }}</span>
-          {% endfor %}
+          {% if truncate_limits %}
+          <div>
+            <b>Active truncation</b>:
+            {% for field, limit in truncate_limits.items() %}
+            <span class="sort-badge">{{ field }} …{{ limit }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if column_widths %}
+          <div style="margin-top:4px">
+            <b>Active widths</b>:
+            {% for field, width in column_widths.items() %}
+            <span class="sort-badge">{{ field }} {{ width }}ch</span>
+            {% endfor %}
+          </div>
+          {% endif %}
         </div>
         {% endif %}
       </form>
@@ -367,21 +390,25 @@
           <thead>
             <tr>
               {% for field in included_fields %}
-              <th>
+              <th style="width:{{ column_widths.get(field, default_column_width) }}ch;max-width:{{ column_widths.get(field, default_column_width) }}ch">
                 <div class="header-cell">
                   <button type="button"
-                          class="header-sort-button"
-                          data-sort-field="{{ field }}"
-                          data-sort-order="{{ 'desc' if primary_sort_field == field and primary_sort_order == 'asc' else 'asc' }}">
-                    {{ field }}
-                    {% if primary_sort_field == field %}
-                    <span class="sort-indicator">{{ '↑' if primary_sort_order == 'asc' else '↓' }}</span>
-                    {% endif %}
-                    {% if truncate_limits.get(field) %}
-                    <span class="truncate-indicator" title="Truncated to {{ truncate_limits[field] }} characters">…{{ truncate_limits[field] }}</span>
-                    {% endif %}
+                          class="header-menu-toggle"
+                          data-header-menu="{{ field }}"
+                          title="Column actions"
+                          aria-haspopup="menu"
+                          aria-expanded="false">
+                    <span class="header-label">
+                      <span>{{ field }}</span>
+                      {% if primary_sort_field == field %}
+                      <span class="sort-indicator">{{ '↑' if primary_sort_order == 'asc' else '↓' }}</span>
+                      {% endif %}
+                      {% if truncate_limits.get(field) %}
+                      <span class="truncate-indicator" title="Truncated to {{ truncate_limits[field] }} characters">…{{ truncate_limits[field] }}</span>
+                      {% endif %}
+                    </span>
+                    <span aria-hidden="true">▾</span>
                   </button>
-                  <button type="button" class="header-menu-button" data-header-menu="{{ field }}" title="Column actions">▾</button>
                   <div class="header-menu" data-header-menu-panel="{{ field }}" hidden>
                     <button type="button" class="header-menu-item" data-sort-field="{{ field }}" data-sort-order="asc">Sort Ascending</button>
                     <button type="button" class="header-menu-item" data-sort-field="{{ field }}" data-sort-order="desc">Sort Descending</button>
@@ -398,7 +425,7 @@
             {% for rec in records %}
             <tr>
               {% for field in included_fields %}
-              <td title="{{ display_value(rec.get(field, '')) }}">{{ display_value(rec.get(field, ''), truncate_limits.get(field)) }}</td>
+              <td style="width:{{ column_widths.get(field, default_column_width) }}ch;max-width:{{ column_widths.get(field, default_column_width) }}ch" title="{{ display_value(rec.get(field, '')) }}">{{ display_value(rec.get(field, ''), truncate_limits.get(field)) }}</td>
               {% endfor %}
             </tr>
             {% endfor %}
@@ -593,9 +620,12 @@ function selectAllFields(checked) {
     document.querySelectorAll('.header-menu').forEach(function (menu) {
       menu.hidden = true;
     });
+    document.querySelectorAll('.header-menu-toggle').forEach(function (button) {
+      button.setAttribute('aria-expanded', 'false');
+    });
   }
 
-  document.querySelectorAll('.header-sort-button, .header-menu-item[data-sort-field]').forEach(function (button) {
+  document.querySelectorAll('.header-menu-item[data-sort-field]').forEach(function (button) {
     button.addEventListener('click', function (event) {
       event.preventDefault();
       sortField.value = button.dataset.sortField;
@@ -604,7 +634,7 @@ function selectAllFields(checked) {
     });
   });
 
-  document.querySelectorAll('.header-menu-button').forEach(function (button) {
+  document.querySelectorAll('.header-menu-toggle').forEach(function (button) {
     button.addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();
@@ -613,6 +643,7 @@ function selectAllFields(checked) {
       closeMenus();
       if (menu) {
         menu.hidden = !willOpen;
+        button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
       }
     });
   });
