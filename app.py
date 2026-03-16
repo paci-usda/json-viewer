@@ -41,6 +41,11 @@ _column_widths: dict = {}     # field → max display width in chars
 _uploaded_files: dict = {}    # sha256 → set(filename)
 _default_truncate_limit: int = 50
 _default_column_width: int = 100
+_display_mode_options: list[tuple[str, str]] = [
+    ("columns", "Table / Columns"),
+    ("lists", "Individual Cards"),
+    ("raw", "Raw JSON"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +123,63 @@ def _display_value(value, limit: int | None = None) -> str:
     if limit and limit > 0 and len(text) > limit:
         return f"{text[:limit]}…"
     return text
+
+
+def _measure_text_width(text: str) -> int:
+    """Return the widest line length in ``text``."""
+    return max((len(line) for line in text.splitlines()), default=0)
+
+
+def _resolve_column_widths(
+    records: list,
+    fields: list,
+    truncate_limits: dict,
+    column_widths: dict,
+) -> dict:
+    """Return effective character widths for each field."""
+    widths: dict = {}
+    for field in fields:
+        explicit_width = column_widths.get(field)
+        if explicit_width:
+            widths[field] = explicit_width
+            continue
+
+        width = _measure_text_width(field)
+        for rec in records:
+            width = max(
+                width,
+                _measure_text_width(
+                    _display_value(rec.get(field, ""), truncate_limits.get(field))
+                ),
+            )
+        widths[field] = max(1, min(_default_column_width, width))
+    return widths
+
+
+def _compute_column_statistics(records: list, field: str, truncate_limit: int | None = None) -> dict:
+    """Return summary statistics for a field across the displayed records."""
+    values = [_stringify_value(rec.get(field, "")) for rec in records]
+    displayed_values = [_display_value(rec.get(field, ""), truncate_limit) for rec in records]
+
+    if not values:
+        return {
+            "unique_count": 0,
+            "displayed_unique_count": 0,
+            "min_value": "",
+            "max_value": "",
+            "min_length": 0,
+            "max_length": 0,
+        }
+
+    lengths = [len(value) for value in values]
+    return {
+        "unique_count": len(set(values)),
+        "displayed_unique_count": len(set(displayed_values)),
+        "min_value": min(values),
+        "max_value": max(values),
+        "min_length": min(lengths),
+        "max_length": max(lengths),
+    }
 
 
 def _parse_positive_int(raw_value: str) -> int | None:
@@ -357,6 +419,16 @@ def index():
     flashed = get_flashed_messages(with_categories=True)
     primary_sort_field = _sort_keys[0][0] if _sort_keys else ""
     primary_sort_order = _sort_keys[0][1] if _sort_keys else "asc"
+    resolved_column_widths = _resolve_column_widths(
+        display_records,
+        _all_fields,
+        _truncate_limits,
+        _column_widths,
+    )
+    column_statistics = {
+        field: _compute_column_statistics(display_records, field, _truncate_limits.get(field))
+        for field in _included_fields
+    }
 
     return render_template(
         "index.html",
@@ -372,8 +444,11 @@ def index():
         filter_errors=filter_errors,
         truncate_limits=_truncate_limits,
         column_widths=_column_widths,
+        resolved_column_widths=resolved_column_widths,
+        column_statistics=column_statistics,
         default_truncate_limit=_default_truncate_limit,
         default_column_width=_default_column_width,
+        display_mode_options=_display_mode_options,
         display_value=_display_value,
         flashed=flashed,
     )

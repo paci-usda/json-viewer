@@ -18,6 +18,40 @@ class JsonViewerTestCase(unittest.TestCase):
         viewer_app._uploaded_files = {}
         self.client = viewer_app.app.test_client()
 
+    def test_resolve_column_widths_uses_displayed_values_and_caps_defaults(self):
+        widths = viewer_app._resolve_column_widths(
+            [
+                {"short": "abcd", "wide": "x" * 130, "msg": "alphabet soup"},
+                {"short": "abc", "wide": "wide", "msg": "beta"},
+            ],
+            ["short", "wide", "msg", "explicit"],
+            {"msg": 5},
+            {"explicit": 12},
+        )
+
+        self.assertEqual(widths["short"], 5)
+        self.assertEqual(widths["wide"], 100)
+        self.assertEqual(widths["msg"], 6)
+        self.assertEqual(widths["explicit"], 12)
+
+    def test_compute_column_statistics_tracks_raw_and_displayed_values(self):
+        stats = viewer_app._compute_column_statistics(
+            [
+                {"msg": "alphabet soup"},
+                {"msg": "alphabet salad"},
+                {"msg": "beta"},
+            ],
+            "msg",
+            5,
+        )
+
+        self.assertEqual(stats["unique_count"], 3)
+        self.assertEqual(stats["displayed_unique_count"], 2)
+        self.assertEqual(stats["min_value"], "alphabet salad")
+        self.assertEqual(stats["max_value"], "beta")
+        self.assertEqual(stats["min_length"], 4)
+        self.assertEqual(stats["max_length"], 14)
+
     def test_multi_file_upload_warns_on_repeat_upload(self):
         response = self.client.post(
             "/",
@@ -89,7 +123,7 @@ class JsonViewerTestCase(unittest.TestCase):
             data={
                 "action": "load",
                 "load_mode": "replace",
-                "json_text": '{"name":"Alpha","msg":"alphabet soup and a very long value that should wrap after a configured width"}\n{"name":"Beta","msg":"beta test"}',
+                "json_text": '{"name":"Alpha","msg":"alphabet soup and a very long value that should wrap after a configured width","wide":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}\n{"name":"Beta","msg":"alphabet salad","wide":"short"}',
             },
             follow_redirects=True,
         )
@@ -98,17 +132,26 @@ class JsonViewerTestCase(unittest.TestCase):
             "/",
             data={
                 "action": "fields",
-                "field_order": "name,msg",
-                "field_check": ["name", "msg"],
+                "field_order": "name,msg,wide",
+                "field_check": ["name", "msg", "wide"],
                 "field_width_name": "",
                 "field_truncate_name": "",
                 "field_width_msg": "20",
                 "field_truncate_msg": "5",
+                "field_width_wide": "",
+                "field_truncate_wide": "",
             },
             follow_redirects=True,
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertIn(b'data-drawer="data">Data</button>', response.data)
+        self.assertIn(b'data-drawer="sort">Sort</button>', response.data)
+        self.assertNotIn(b'View &amp; Sort', response.data)
+        self.assertIn(b'Download displayed data as:', response.data)
+        self.assertIn(b'id="display-mode-select"', response.data)
+        self.assertIn(b'data-auto-submit="1"', response.data)
+        self.assertIn(b'class="field-control-inline"', response.data)
         self.assertIn(b'Active truncation', response.data)
         self.assertIn(b'Active widths', response.data)
         self.assertIn(b'msg \xe2\x80\xa65', response.data)
@@ -121,8 +164,12 @@ class JsonViewerTestCase(unittest.TestCase):
         self.assertIn(b'name="field_truncate_msg" value="5"', response.data)
         self.assertIn(b'title="Column actions"', response.data)
         self.assertIn(b'class="header-menu-toggle"', response.data)
-        self.assertIn(b'width:100ch;max-width:100ch', response.data)
-        self.assertIn(b'width:20ch;max-width:20ch', response.data)
+        self.assertIn(b'Unique values: 2', response.data)
+        self.assertIn(b'Unique displayed values: 1', response.data)
+        self.assertIn(b'Statistics for msg', response.data)
+        self.assertIn(b'width:5ch;min-width:5ch;max-width:5ch', response.data)
+        self.assertIn(b'width:20ch;min-width:20ch;max-width:20ch', response.data)
+        self.assertIn(b'width:100ch;min-width:100ch;max-width:100ch', response.data)
         self.assertIn(
             b'>alpha\xe2\x80\xa6</td>',
             response.data,
