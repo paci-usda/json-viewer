@@ -41,6 +41,7 @@ _column_widths: dict = {}     # field → max display width in chars
 _uploaded_files: dict = {}    # sha256 → set(filename)
 _default_truncate_limit: int = 50
 _default_column_width: int = 100
+_min_column_width: int = 1
 _display_mode_options: list[tuple[str, str]] = [
     ("columns", "Table / Columns"),
     ("lists", "Individual Cards"),
@@ -109,7 +110,7 @@ def _compute_display(records: list) -> tuple[list, dict]:
 
 
 def _stringify_value(value) -> str:
-    """Return a readable string for a record value."""
+    """Return a readable string for a record value, mapping ``None`` to ``""``."""
     if isinstance(value, (dict, list)):
         return json.dumps(value, sort_keys=True)
     if value is None:
@@ -152,7 +153,7 @@ def _resolve_column_widths(
                     _display_value(rec.get(field, ""), truncate_limits.get(field))
                 ),
             )
-        widths[field] = max(1, min(_default_column_width, width))
+        widths[field] = max(_min_column_width, min(_default_column_width, width))
     return widths
 
 
@@ -190,9 +191,9 @@ def _parse_positive_int(raw_value: str) -> int | None:
     try:
         value = int(text)
     except ValueError as exc:
-        raise ValueError("must be numeric") from exc
+        raise ValueError("value must be a number") from exc
     if value < 1:
-        raise ValueError("must be positive")
+        raise ValueError("value must be a positive integer")
     return value
 
 

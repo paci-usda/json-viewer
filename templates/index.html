@@ -236,7 +236,7 @@
         <input type="hidden" name="field_order" id="field-order-input"
                value="{{ all_fields | join(',') }}">
         <p style="font-size:11px;color:#666;margin:0 0 8px">
-          ☰ Drag rows to reorder · Check/uncheck to show or hide a field · Width defaults to {{ default_column_width }} characters if blank.
+          ☰ Drag to reorder · Width is in characters · Blank width auto-fits up to {{ default_column_width }} characters.
         </p>
         <div id="fields-list">
           {% for field in all_fields %}
