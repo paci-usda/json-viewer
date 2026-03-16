@@ -113,14 +113,20 @@ class JsonViewerTestCase(unittest.TestCase):
         self.assertIn(b'Active widths', response.data)
         self.assertIn(b'msg \xe2\x80\xa65', response.data)
         self.assertIn(b'msg 20ch', response.data)
-        self.assertIn(b'Truncate to 50', response.data)
+        self.assertIn(
+            f"Truncate to {viewer_app._default_truncate_limit}".encode(),
+            response.data,
+        )
         self.assertIn(b'name="field_width_msg" value="20"', response.data)
         self.assertIn(b'name="field_truncate_msg" value="5"', response.data)
         self.assertIn(b'title="Column actions"', response.data)
         self.assertIn(b'class="header-menu-toggle"', response.data)
         self.assertIn(b'width:100ch;max-width:100ch', response.data)
         self.assertIn(b'width:20ch;max-width:20ch', response.data)
-        self.assertIn(b'alpha\xe2\x80\xa6', response.data)
+        self.assertIn(
+            b'>alpha\xe2\x80\xa6</td>',
+            response.data,
+        )
 
     def test_invalid_field_settings_show_validation_errors(self):
         self.client.post(

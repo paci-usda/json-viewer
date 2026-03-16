@@ -196,7 +196,7 @@
         <input type="hidden" name="field_order" id="field-order-input"
                value="{{ all_fields | join(',') }}">
         <p style="font-size:11px;color:#666;margin:0 0 8px">
-          ☰ Drag rows to reorder · Check/uncheck to show or hide a field · Width defaults to {{ default_column_width }} if blank.
+          ☰ Drag rows to reorder · Check/uncheck to show or hide a field · Width defaults to {{ default_column_width }} characters if blank.
         </p>
         <div id="fields-list">
           {% for field in all_fields %}
@@ -656,7 +656,7 @@ function selectAllFields(checked) {
       truncateClear.value = button.dataset.truncateClear === '1' ? '1' : '0';
       if (button.dataset.truncatePrompt === '1') {
         if (!truncateDialog || !truncateDialog.showModal) {
-          const answer = window.prompt('Truncate displayed values to how many characters?', '{{ default_truncate_limit }}');
+          const answer = window.prompt('Truncate displayed values to how many characters?', {{ default_truncate_limit | tojson }});
           if (answer === null) {
             closeMenus();
             return;
@@ -668,7 +668,7 @@ function selectAllFields(checked) {
         }
         truncateDialog.dataset.field = button.dataset.truncateField;
         truncateDialogTitle.textContent = 'Truncate "' + button.dataset.truncateField + '" values';
-        truncateDialogInput.value = '{{ default_truncate_limit }}';
+        truncateDialogInput.value = {{ default_truncate_limit | tojson }};
         closeMenus();
         truncateDialog.showModal();
         truncateDialogInput.focus();

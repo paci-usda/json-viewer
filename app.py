@@ -113,7 +113,7 @@ def _stringify_value(value) -> str:
 
 
 def _display_value(value, limit: int | None = None) -> str:
-    """Return a display string, optionally truncated."""
+    """Return a display string, optionally truncated to ``limit`` characters."""
     text = _stringify_value(value)
     if limit and limit > 0 and len(text) > limit:
         return f"{text[:limit]}…"
@@ -125,9 +125,12 @@ def _parse_positive_int(raw_value: str) -> int | None:
     text = raw_value.strip()
     if not text:
         return None
-    value = int(text)
+    try:
+        value = int(text)
+    except ValueError as exc:
+        raise ValueError("must be numeric") from exc
     if value < 1:
-        raise ValueError
+        raise ValueError("must be positive")
     return value
 
 
