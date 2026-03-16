@@ -26,6 +26,7 @@
     .alert { padding: 8px 12px; border-radius: 3px; margin-bottom: 10px; font-size: 13px; }
     .alert-error { background: #fdd; border: 1px solid #f99; color: #900; }
     .alert-info  { background: #dfd; border: 1px solid #9c9; color: #060; }
+    .alert-warning { background: #fff5d6; border: 1px solid #e1bc4b; color: #7b5b00; }
 
     /* ── Buttons ────────────────────────────────────────────────────────── */
     button {
@@ -51,10 +52,17 @@
       display: flex; align-items: center; gap: 8px;
       padding: 4px 6px; border-radius: 3px; user-select: none;
       background: #fafafa; border: 1px solid #e0e0e0; margin-bottom: 3px;
+      flex-wrap: nowrap;
     }
     .field-row.drag-over { border-color: #2c7be5; background: #e8f0fc; }
     .drag-handle { cursor: grab; color: #999; font-size: 16px; line-height: 1; }
     .drag-handle:active { cursor: grabbing; }
+    .field-name {
+      flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .field-control-inline { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .field-control-inline span { color: #666; font-size: 11px; }
+    .field-control-inline input[type=text] { width: 9ch; }
 
     /* ── Sort badges ────────────────────────────────────────────────────── */
     .sort-badge {
@@ -70,18 +78,60 @@
     .active-filter { color: #2c7be5; font-weight: bold; }
 
     /* ── Data area ──────────────────────────────────────────────────────── */
-    .data-area { overflow: auto; max-height: 560px; }
+    .data-area {
+      overflow: auto; resize: both; min-height: 240px; min-width: 320px;
+      width: 100%; height: 560px; max-width: 100%;
+    }
 
     /* Table view */
-    table.data-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+    table.data-table { border-collapse: collapse; width: max-content; font-size: 12px; max-width: none; table-layout: fixed; }
     table.data-table th, table.data-table td {
-      border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; white-space: pre-wrap;
+      border: 1px solid #ccc; text-align: left; vertical-align: top;
+      word-break: break-word; overflow-wrap: anywhere;
     }
+    /* it was this; should not use in th: white-space: pre-wrap; */
+    table.data-table td {
+      white-space: pre-wrap;
+    }
+    table.data-table td { padding: 4px 8px; font-family: monospace; }
     table.data-table thead th {
-      background: #e4eaf5; position: sticky; top: 0; z-index: 1;
+      background: #e4eaf5; position: sticky; top: 0; z-index: 1; padding: 2px 8px; font-family: sans-serif;
     }
     table.data-table tbody tr:nth-child(even) { background: #f7f9fc; }
     table.data-table tbody tr:hover { background: #eef3fb; }
+    .header-cell { position: relative; min-width: 100%; padding-top: 6px; padding-bottom: 6px; }
+    .header-menu-toggle {
+      border: none; background: transparent; padding: 1px 0; font: inherit; font-weight: 600;
+      color: #223; cursor: pointer; width: 100%; text-align: left;
+      display: flex; align-items: center; gap: 6px; justify-content: space-between; line-height: 1.15;
+    }
+    .header-menu-toggle:hover { color: #1a5fb4; text-decoration: underline; background: transparent; }
+    .header-label {
+      display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .header-menu {
+      position: absolute; top: calc(100% + 4px); right: 0; min-width: 170px;
+      background: #fff; border: 1px solid #bbb; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.12);
+      padding: 4px; z-index: 30;
+    }
+    .header-stats {
+      position: absolute; right: 0; bottom: calc(100% + 4px); min-width: 230px; max-width: min(360px, 80vw);
+      background: #fff; border: 1px solid #bbb; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.12);
+      padding: 8px 10px; z-index: 31; font-family: monospace; white-space: normal;
+    }
+    .header-stats-title { font-family: sans-serif; font-weight: 600; margin-bottom: 6px; }
+    .header-stats-row { margin-bottom: 3px; }
+    .header-stats-close {
+      position: absolute; top: 4px; right: 6px; border: none; background: transparent; padding: 0; font-size: 14px;
+    }
+    .header-menu-item {
+      display: block; width: 100%; text-align: left; border: none; background: transparent;
+      padding: 6px 8px; border-radius: 3px;
+    }
+    .header-menu-item:hover { background: #eef3fb; }
+    .header-menu-item[disabled] { color: #999; cursor: default; }
+    .sort-indicator, .truncate-indicator { font-size: 11px; color: #1a5fb4; }
 
     /* Card view */
     .card { border: 1px solid #ccc; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; background: #fafafa; }
@@ -101,6 +151,21 @@
     .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
     .col { display: flex; flex-direction: column; gap: 6px; }
     hr.sep { border: none; border-top: 1px solid #eee; margin: 8px 0; }
+    .hidden-form { display: none; }
+    dialog { border: 1px solid #bbb; border-radius: 6px; padding: 14px 16px; width: min(320px, calc(100vw - 32px)); }
+    dialog::backdrop { background: rgba(0,0,0,.25); }
+
+    /* ── Drawer controls ─────────────────────────────────────────────────── */
+    .drawer-shell { position: relative; background: #f0f0f0; padding-bottom: 6px; }
+    .drawer-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .drawer-tab {
+      border-radius: 0 0 6px 6px; padding: 7px 12px; background: #dbe4ef; border-color: #aab7c6;
+    }
+    .drawer-tab.active { background: #2c7be5; color: #fff; border-color: #1a5fb4; }
+    .drawer-panel { display: none; margin-bottom: 8px; }
+    .drawer-panel.open { display: block; }
+    .display-mode-form { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; font-weight: normal; }
+    .display-mode-form select { font-family: sans-serif; }
   </style>
 </head>
 <body>
@@ -109,179 +174,234 @@
 
   {# ── Flash messages ───────────────────────────────────────────────────── #}
   {% for category, msg in flashed %}
-  <div class="alert alert-{{ 'error' if category == 'error' else 'info' }}">{{ msg }}</div>
+  <div class="alert alert-{{ category if category in ['error', 'info', 'warning'] else 'info' }}">{{ msg }}</div>
   {% endfor %}
 
-  {# ── Load Data ────────────────────────────────────────────────────────── #}
-  <div class="panel">
-    <h3>Load Data</h3>
-    <form method="post" enctype="multipart/form-data">
-      <input type="hidden" name="action" value="load">
-      <div class="row" style="margin-bottom:8px">
-        <label><input type="radio" name="load_mode" value="replace" checked> Replace existing data</label>
-        <label><input type="radio" name="load_mode" value="add"> Add to existing data</label>
-        <span style="color:#888;font-size:11px">({{ total }} record{{ 's' if total != 1 else '' }} currently loaded)</span>
-      </div>
-      <div class="row" style="align-items:flex-start">
-        <div class="col">
-          <label><b>Upload file (.json / .jsonl / .log / .txt):</b></label>
-          <input type="file" name="file" accept=".json,.jsonl,.log,.txt,.ndjson">
-        </div>
-        <div style="align-self:center;color:#999">— or —</div>
-        <div class="col" style="flex:1;min-width:280px">
-          <label><b>Paste JSON (one record per line):</b></label>
-          <textarea name="json_text" rows="5" style="width:100%"
-                    placeholder='{"timestamp": "2024-01-01T00:00:00", "level": "INFO", "msg": "hello"}'></textarea>
-        </div>
-      </div>
-      <div style="margin-top:10px">
-        <button type="submit" class="primary">Load Data</button>
-      </div>
-    </form>
-  </div>
+  <div class="drawer-shell">
+    <div class="drawer-tabs">
+      <button type="button" class="drawer-tab active" data-drawer="data">Data</button>
+      {% if all_fields %}
+      <button type="button" class="drawer-tab" data-drawer="fields">Fields</button>
+      <button type="button" class="drawer-tab" data-drawer="sort">Sort</button>
+      <button type="button" class="drawer-tab" data-drawer="filters">Filters</button>
+      {% endif %}
+    </div>
 
-  {% if all_fields %}
+    {# ── Data ─────────────────────────────────────────────────────────────── #}
+    <div class="panel drawer-panel open" data-drawer-panel="data">
+      <h3>Data</h3>
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="load">
+        <div class="row" style="margin-bottom:8px">
+          <label><input type="radio" name="load_mode" value="replace" checked> Replace existing data</label>
+          <label><input type="radio" name="load_mode" value="add"> Add to existing data</label>
+          <span style="color:#888;font-size:11px">({{ total }} record{{ 's' if total != 1 else '' }} currently loaded)</span>
+        </div>
+        <div class="row" style="align-items:flex-start">
+          <div class="col">
+            <label><b>Upload file(s) (.json / .jsonl / .log / .txt):</b></label>
+            <input type="file" name="files" accept=".json,.jsonl,.log,.txt,.ndjson" multiple>
+            <span style="color:#777;font-size:11px">You can select more than one file; repeated uploads will show a warning.</span>
+          </div>
+          <div style="align-self:center;color:#999">— or —</div>
+          <div class="col" style="flex:1;min-width:280px">
+            <label><b>Paste JSON (one record per line):</b></label>
+            <textarea name="json_text" rows="5" style="width:100%"
+                      placeholder='{"timestamp": "2024-01-01T00:00:00", "level": "INFO", "msg": "hello"}'></textarea>
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <button type="submit" class="primary">Load Data</button>
+        </div>
+      </form>
+      {% if all_fields %}
+      <hr class="sep">
+      <form method="post">
+        <div class="row">
+          <b>Download displayed data as:</b>
+          <select name="export_format">
+            <option value="csv">CSV</option>
+            <option value="tsv">Tab-separated</option>
+            <option value="json">JSON</option>
+          </select>
+          <button type="submit" name="action" value="download" class="primary">Download</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
 
-  {# ── Fields ───────────────────────────────────────────────────────────── #}
-  <div class="panel">
-    <h3>Fields</h3>
-    <form method="post" id="fields-form">
-      <input type="hidden" name="action" value="fields">
-      <input type="hidden" name="field_order" id="field-order-input"
-             value="{{ all_fields | join(',') }}">
-      <p style="font-size:11px;color:#666;margin:0 0 8px">
-        ☰ Drag rows to reorder · Check/uncheck to show or hide a field.
-      </p>
-      <div id="fields-list">
-        {% for field in all_fields %}
-        <div class="field-row" data-field="{{ field }}">
-          <span class="drag-handle" title="Drag to reorder">☰</span>
-          <input type="checkbox" name="field_check" value="{{ field }}"
-                 id="fc_{{ loop.index }}"
-                 {% if field in included_fields %}checked{% endif %}>
-          <label for="fc_{{ loop.index }}" style="flex:1">{{ field }}</label>
-          {% if field in filters and filters[field].pattern %}
-          <span class="active-filter" title="Filter active">▼</span>
+    {% if all_fields %}
+
+    {# ── Fields ───────────────────────────────────────────────────────────── #}
+    <div class="panel drawer-panel" data-drawer-panel="fields">
+      <h3>Fields</h3>
+      <form method="post" id="fields-form">
+        <input type="hidden" name="action" value="fields">
+        <input type="hidden" name="field_order" id="field-order-input"
+               value="{{ all_fields | join(',') }}">
+        <p style="font-size:11px;color:#666;margin:0 0 8px">
+          ☰ Drag to reorder · Width is in characters · Blank width auto-fits up to {{ default_column_width }} characters.
+        </p>
+        <div id="fields-list">
+          {% for field in all_fields %}
+          <div class="field-row" data-field="{{ field }}">
+            <span class="drag-handle" title="Drag to reorder">☰</span>
+            <input type="checkbox" name="field_check" value="{{ field }}"
+                   id="fc_{{ loop.index }}"
+                   {% if field in included_fields %}checked{% endif %}>
+            <label for="fc_{{ loop.index }}" class="field-name">{{ field }}</label>
+            <label class="field-control-inline">
+              <span>Width</span>
+              <input type="text" name="field_width_{{ field }}" value="{{ column_widths.get(field, '') }}" size="8" placeholder="{{ resolved_column_widths.get(field, default_column_width) }}">
+            </label>
+            <label class="field-control-inline">
+              <span>Truncate Display</span>
+              <input type="text" name="field_truncate_{{ field }}" value="{{ truncate_limits.get(field, '') }}" size="8" placeholder="blank = none">
+            </label>
+            {% if field in filters and filters[field].pattern %}
+            <span class="active-filter" title="Filter active">▼</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button type="submit" class="primary">Apply Field Settings</button>
+          <button type="button" onclick="selectAllFields(true)">Select All</button>
+          <button type="button" onclick="selectAllFields(false)">Deselect All</button>
+        </div>
+      </form>
+    </div>
+
+    {# ── Sort ─────────────────────────────────────────────────────────────── #}
+    <div class="panel drawer-panel" data-drawer-panel="sort">
+      <h3>Sort</h3>
+      <form method="post">
+        <div class="row">
+          <b>Sort by:</b>
+          <select name="sort_field">
+            <option value="">— choose field —</option>
+            {% for field in all_fields %}
+            <option value="{{ field }}" {% if field == primary_sort_field %}selected{% endif %}>{{ field }}</option>
+            {% endfor %}
+          </select>
+          <label><input type="radio" name="sort_order" value="asc" {% if primary_sort_order == 'asc' %}checked{% endif %}> ↑ Ascending</label>
+          <label><input type="radio" name="sort_order" value="desc" {% if primary_sort_order == 'desc' %}checked{% endif %}> ↓ Descending</label>
+          <button type="submit" name="action" value="sort" class="primary">Sort</button>
+          {% if sort_keys %}
+          <button type="submit" name="action" value="clear_sort" class="danger">Clear Sort</button>
           {% endif %}
         </div>
-        {% endfor %}
-      </div>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <button type="submit" class="primary">Apply Field Settings</button>
-        <button type="button" onclick="selectAllFields(true)">Select All</button>
-        <button type="button" onclick="selectAllFields(false)">Deselect All</button>
-      </div>
-    </form>
-  </div>
 
-  {# ── View & Sort ──────────────────────────────────────────────────────── #}
-  <div class="panel">
-    <h3>View &amp; Sort</h3>
-    <form method="post">
-      <div class="row" style="margin-bottom:10px">
-        <b>Display as:</b>
-        <label><input type="radio" name="display_mode" value="columns"
-               {% if display_mode == 'columns' %}checked{% endif %}> Table / Columns</label>
-        <label><input type="radio" name="display_mode" value="lists"
-               {% if display_mode == 'lists' %}checked{% endif %}> Individual Cards</label>
-        <label><input type="radio" name="display_mode" value="raw"
-               {% if display_mode == 'raw' %}checked{% endif %}> Raw JSON</label>
-        <button type="submit" name="action" value="display">Apply</button>
-      </div>
-
-      <hr class="sep">
-
-      <div class="row">
-        <b>Sort by:</b>
-        <select name="sort_field">
-          <option value="">— choose field —</option>
-          {% for field in all_fields %}
-          <option value="{{ field }}">{{ field }}</option>
-          {% endfor %}
-        </select>
-        <label><input type="radio" name="sort_order" value="asc" checked> ↑ Ascending</label>
-        <label><input type="radio" name="sort_order" value="desc"> ↓ Descending</label>
-        <button type="submit" name="action" value="sort" class="primary">Sort</button>
         {% if sort_keys %}
-        <button type="submit" name="action" value="clear_sort" class="danger">Clear Sort</button>
-        {% endif %}
-      </div>
-
-      {% if sort_keys %}
-      <div style="margin-top:8px;font-size:11px;color:#555">
-        <b>Active sort keys</b> (most recent = primary sort, earlier = tiebreakers):
-        {% for field, order in sort_keys %}
-        <span class="sort-badge">
-          {{ field }} {{ '↑' if order == 'asc' else '↓' }}
-          <span class="rank">#{{ loop.index }}</span>
-        </span>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </form>
-  </div>
-
-  {# ── Filters ──────────────────────────────────────────────────────────── #}
-  <div class="panel">
-    <h3>Filters
-      {% if filters %}
-      <span style="font-size:11px;color:#2c7be5">({{ filters | length }} active)</span>
-      {% endif %}
-    </h3>
-    <form method="post">
-      <table style="border-collapse:collapse;width:100%">
-        <thead>
-          <tr style="font-size:11px;color:#555;border-bottom:1px solid #ddd">
-            <th style="padding:4px 8px;text-align:left;width:160px">Field</th>
-            <th style="padding:4px 8px;text-align:left">Regexp pattern</th>
-            <th style="padding:4px 8px;text-align:left">Mode</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for field in all_fields %}
-          {% set filt = filters.get(field, {}) %}
-          <tr style="border-bottom:1px solid #f0f0f0">
-            <td style="padding:3px 8px;font-weight:{% if filt.get('pattern') %}bold{% else %}normal{% endif %}">
-              {{ field }}
-            </td>
-            <td style="padding:3px 8px">
-              <input type="text" name="fpat_{{ field }}"
-                     value="{{ filt.get('pattern', '') }}"
-                     size="35" placeholder="e.g. ^ERROR|WARN">
-              {% if filter_errors.get(field) %}
-              <span class="filter-err">✗ {{ filter_errors[field] }}</span>
-              {% endif %}
-            </td>
-            <td style="padding:3px 8px">
-              <label>
-                <input type="radio" name="fmode_{{ field }}" value="include"
-                       {% if filt.get('mode', 'include') == 'include' %}checked{% endif %}>
-                Include matches
-              </label>
-              &nbsp;
-              <label>
-                <input type="radio" name="fmode_{{ field }}" value="exclude"
-                       {% if filt.get('mode') == 'exclude' %}checked{% endif %}>
-                Exclude matches
-              </label>
-            </td>
-          </tr>
+        <div style="margin-top:8px;font-size:11px;color:#555">
+          <b>Active sort keys</b> (most recent = primary sort, earlier = tiebreakers):
+          {% for field, order in sort_keys %}
+          <span class="sort-badge">
+            {{ field }} {{ '↑' if order == 'asc' else '↓' }}
+            <span class="rank">#{{ loop.index }}</span>
+          </span>
           {% endfor %}
-        </tbody>
-      </table>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <button type="submit" name="action" value="filter" class="primary">Apply Filters</button>
-        {% if filters %}
-        <button type="submit" name="action" value="clear_filters" class="danger">Clear All Filters</button>
+        </div>
         {% endif %}
-      </div>
-    </form>
+
+        {% if truncate_limits or column_widths %}
+        <div style="margin-top:8px;font-size:11px;color:#555">
+          {% if truncate_limits %}
+          <div>
+            <b>Active truncation</b>:
+            {% for field, limit in truncate_limits.items() %}
+            <span class="sort-badge">{{ field }} …{{ limit }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if column_widths %}
+          <div style="margin-top:4px">
+            <b>Active widths</b>:
+            {% for field, width in column_widths.items() %}
+            <span class="sort-badge">{{ field }} {{ width }}ch</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </form>
+    </div>
+
+    {# ── Filters ──────────────────────────────────────────────────────────── #}
+    <div class="panel drawer-panel" data-drawer-panel="filters">
+      <h3>Filters
+        {% if filters %}
+        <span style="font-size:11px;color:#2c7be5">({{ filters | length }} active)</span>
+        {% endif %}
+      </h3>
+      <form method="post">
+        <table style="border-collapse:collapse;width:100%">
+          <thead>
+            <tr style="font-size:11px;color:#555;border-bottom:1px solid #ddd">
+              <th style="padding:4px 8px;text-align:left;width:160px">Field</th>
+              <th style="padding:4px 8px;text-align:left">Regexp pattern</th>
+              <th style="padding:4px 8px;text-align:left">Mode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for field in all_fields %}
+            {% set filt = filters.get(field, {}) %}
+            <tr style="border-bottom:1px solid #f0f0f0">
+              <td style="padding:3px 8px;font-weight:{% if filt.get('pattern') %}bold{% else %}normal{% endif %}">
+                {{ field }}
+              </td>
+              <td style="padding:3px 8px">
+                <input type="text" name="fpat_{{ field }}"
+                       value="{{ filt.get('pattern', '') }}"
+                       size="35" placeholder="e.g. ^ERROR|WARN">
+                {% if filter_errors.get(field) %}
+                <span class="filter-err">✗ {{ filter_errors[field] }}</span>
+                {% endif %}
+              </td>
+              <td style="padding:3px 8px">
+                <label>
+                  <input type="radio" name="fmode_{{ field }}" value="include"
+                         {% if filt.get('mode', 'include') == 'include' %}checked{% endif %}>
+                  Include matches
+                </label>
+                &nbsp;
+                <label>
+                  <input type="radio" name="fmode_{{ field }}" value="exclude"
+                         {% if filt.get('mode') == 'exclude' %}checked{% endif %}>
+                  Exclude matches
+                </label>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button type="submit" name="action" value="filter" class="primary">Apply Filters</button>
+          {% if filters %}
+          <button type="submit" name="action" value="clear_filters" class="danger">Clear All Filters</button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+
+    {% endif %}{# end if all_fields #}
   </div>
 
   {# ── Data Display ─────────────────────────────────────────────────────── #}
   <div class="panel">
     <h3>
       Data
+      {% if all_fields %}
+      <form method="post" class="display-mode-form" id="display-mode-form">
+        <input type="hidden" name="action" value="display">
+        <label for="display-mode-select">Display as</label>
+        <select name="display_mode" id="display-mode-select" data-auto-submit="1">
+          {% for mode_value, mode_label in display_mode_options %}
+          <option value="{{ mode_value }}" {% if display_mode == mode_value %}selected{% endif %}>{{ mode_label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
       <span style="font-size:11px;font-weight:normal;color:#666">
         — showing {{ records | length }} record{{ 's' if records | length != 1 else '' }}
         {% if records | length != total %} (filtered from {{ total }} total){% endif %}
@@ -296,7 +416,47 @@
           <thead>
             <tr>
               {% for field in included_fields %}
-              <th>{{ field }}</th>
+              {% set stats = column_statistics.get(field, {}) %}
+              <th style="width:{{ resolved_column_widths.get(field, default_column_width) }}ch;min-width:{{ resolved_column_widths.get(field, default_column_width) }}ch;max-width:{{ resolved_column_widths.get(field, default_column_width) }}ch">
+                <div class="header-cell">
+                  <button type="button"
+                          class="header-menu-toggle"
+                          data-header-menu="{{ field }}"
+                          title="Column actions"
+                          aria-haspopup="menu"
+                          aria-expanded="false">
+                    <span class="header-label">
+                      <span>{{ field }}</span>
+                      {% if primary_sort_field == field %}
+                      <span class="sort-indicator">{{ '↑' if primary_sort_order == 'asc' else '↓' }}</span>
+                      {% endif %}
+                      {% if truncate_limits.get(field) %}
+                      <span class="truncate-indicator" title="Truncated to {{ truncate_limits[field] }} characters">…{{ truncate_limits[field] }}</span>
+                      {% endif %}
+                    </span>
+                    <span aria-hidden="true">▾</span>
+                  </button>
+                  <div class="header-stats" data-header-stats-panel="{{ field }}" hidden>
+                    <button type="button" class="header-stats-close" data-close-stats="{{ field }}" aria-label="Close statistics">×</button>
+                    <div class="header-stats-title">Statistics for {{ field }}</div>
+                    <div class="header-stats-row"><b>Unique values:</b> {{ stats.get("unique_count", 0) }}</div>
+                    <div class="header-stats-row"><b>Unique displayed values:</b> {{ stats.get("displayed_unique_count", 0) }}</div>
+                    <div class="header-stats-row"><b>Minimum value:</b> {{ stats.get("min_value", "") or "—" }}</div>
+                    <div class="header-stats-row"><b>Maximum value:</b> {{ stats.get("max_value", "") or "—" }}</div>
+                    <div class="header-stats-row"><b>Minimum length:</b> {{ stats.get("min_length", 0) }}</div>
+                    <div class="header-stats-row"><b>Maximum length:</b> {{ stats.get("max_length", 0) }}</div>
+                  </div>
+                  <div class="header-menu" data-header-menu-panel="{{ field }}" hidden>
+                    <button type="button" class="header-menu-item" data-sort-field="{{ field }}" data-sort-order="asc">Sort Ascending</button>
+                    <button type="button" class="header-menu-item" data-sort-field="{{ field }}" data-sort-order="desc">Sort Descending</button>
+                    <button type="button" class="header-menu-item" data-stat-field="{{ field }}">Unique values: {{ stats.get("unique_count", 0) }}</button>
+                    <button type="button" class="header-menu-item" data-stat-field="{{ field }}">Unique displayed values: {{ stats.get("displayed_unique_count", 0) }}</button>
+                    <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-limit="{{ default_truncate_limit }}">Truncate to {{ default_truncate_limit }}</button>
+                    <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-prompt="1">Truncate...</button>
+                    <button type="button" class="header-menu-item" data-truncate-field="{{ field }}" data-truncate-clear="1" {% if not truncate_limits.get(field) %}disabled{% endif %}>Clear Truncate</button>
+                  </div>
+                </div>
+              </th>
               {% endfor %}
             </tr>
           </thead>
@@ -304,7 +464,7 @@
             {% for rec in records %}
             <tr>
               {% for field in included_fields %}
-              <td>{{ rec.get(field, '') }}</td>
+              <td style="width:{{ resolved_column_widths.get(field, default_column_width) }}ch;min-width:{{ resolved_column_widths.get(field, default_column_width) }}ch;max-width:{{ resolved_column_widths.get(field, default_column_width) }}ch" title="{{ display_value(rec.get(field, '')) }}">{{ display_value(rec.get(field, ''), truncate_limits.get(field)) }}</td>
               {% endfor %}
             </tr>
             {% endfor %}
@@ -320,7 +480,7 @@
           {% if field in rec %}
           <div class="card-field">
             <span class="card-key">{{ field }}:</span>
-            <span class="card-val">{{ rec[field] }}</span>
+            <span class="card-val">{{ display_value(rec[field]) }}</span>
           </div>
           {% endif %}
           {% endfor %}
@@ -338,11 +498,76 @@
     {% endif %}
   </div>
 
-  {% endif %}{# end if all_fields #}
-
 </div>{# end .container #}
 
+<form method="post" id="header-sort-form" class="hidden-form">
+  <input type="hidden" name="action" value="sort">
+  <input type="hidden" name="sort_field" id="header-sort-field">
+  <input type="hidden" name="sort_order" id="header-sort-order">
+</form>
+
+<form method="post" id="truncate-form" class="hidden-form">
+  <input type="hidden" name="action" value="truncate">
+  <input type="hidden" name="truncate_field" id="truncate-field">
+  <input type="hidden" name="truncate_limit" id="truncate-limit">
+  <input type="hidden" name="truncate_clear" id="truncate-clear" value="0">
+</form>
+
+<dialog id="truncate-dialog">
+  <form method="dialog" class="col">
+    <label for="truncate-dialog-input"><b id="truncate-dialog-title">Truncate displayed values</b></label>
+    <input type="text" id="truncate-dialog-input" inputmode="numeric" value="{{ default_truncate_limit }}">
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" id="truncate-dialog-cancel">Cancel</button>
+      <button type="button" class="primary" id="truncate-dialog-apply">Apply</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
+/* ── Drawer tabs ────────────────────────────────────────────────────────── */
+(function () {
+  const tabs = Array.from(document.querySelectorAll('.drawer-tab'));
+  const panels = Array.from(document.querySelectorAll('.drawer-panel'));
+  if (!tabs.length) return;
+
+  const storageKey = 'json-viewer-open-drawers';
+
+  function syncTabs() {
+    tabs.forEach(function (tab) {
+      const panel = document.querySelector('[data-drawer-panel="' + tab.dataset.drawer + '"]');
+      tab.classList.toggle('active', !!panel && panel.classList.contains('open'));
+    });
+  }
+
+  function saveState() {
+    const openDrawers = panels
+      .filter(function (panel) { return panel.classList.contains('open'); })
+      .map(function (panel) { return panel.dataset.drawerPanel; });
+    window.localStorage.setItem(storageKey, JSON.stringify(openDrawers));
+  }
+
+  const saved = window.localStorage.getItem(storageKey);
+  if (saved) {
+    const openDrawers = new Set(JSON.parse(saved));
+    panels.forEach(function (panel) {
+      panel.classList.toggle('open', openDrawers.has(panel.dataset.drawerPanel));
+    });
+  }
+
+  syncTabs();
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      const panel = document.querySelector('[data-drawer-panel="' + tab.dataset.drawer + '"]');
+      if (!panel) return;
+      panel.classList.toggle('open');
+      syncTabs();
+      saveState();
+    });
+  });
+})();
+
 /* ── Drag-and-drop field reordering ────────────────────────────────────── */
 (function () {
   const list = document.getElementById('fields-list');
@@ -412,6 +637,161 @@ function selectAllFields(checked) {
   document.querySelectorAll('#fields-list input[type=checkbox]')
           .forEach(function (cb) { cb.checked = checked; });
 }
+
+/* ── Immediate display mode changes ────────────────────────────────────── */
+(function () {
+  const form = document.getElementById('display-mode-form');
+  const select = document.getElementById('display-mode-select');
+  if (!form || !select) return;
+
+  select.addEventListener('change', function () {
+    form.submit();
+  });
+})();
+
+/* ── Header sort / menu / truncate / statistics actions ────────────────── */
+(function () {
+  const sortForm = document.getElementById('header-sort-form');
+  const sortField = document.getElementById('header-sort-field');
+  const sortOrder = document.getElementById('header-sort-order');
+  const truncateForm = document.getElementById('truncate-form');
+  const truncateField = document.getElementById('truncate-field');
+  const truncateLimit = document.getElementById('truncate-limit');
+  const truncateClear = document.getElementById('truncate-clear');
+  const truncateDialog = document.getElementById('truncate-dialog');
+  const truncateDialogTitle = document.getElementById('truncate-dialog-title');
+  const truncateDialogInput = document.getElementById('truncate-dialog-input');
+  const truncateDialogApply = document.getElementById('truncate-dialog-apply');
+  const truncateDialogCancel = document.getElementById('truncate-dialog-cancel');
+
+  if (!sortForm || !truncateForm) return;
+
+  function closeStats() {
+    document.querySelectorAll('.header-stats').forEach(function (panel) {
+      panel.hidden = true;
+    });
+  }
+
+  function closeMenus() {
+    document.querySelectorAll('.header-menu').forEach(function (menu) {
+      menu.hidden = true;
+    });
+    document.querySelectorAll('.header-menu-toggle').forEach(function (button) {
+      button.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  document.querySelectorAll('.header-menu-item[data-sort-field]').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      sortField.value = button.dataset.sortField;
+      sortOrder.value = button.dataset.sortOrder || 'asc';
+      sortForm.submit();
+    });
+  });
+
+  document.querySelectorAll('.header-menu-toggle').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const menu = document.querySelector('[data-header-menu-panel="' + button.dataset.headerMenu + '"]');
+      const willOpen = menu && menu.hidden;
+      closeMenus();
+      closeStats();
+      if (menu) {
+        menu.hidden = !willOpen;
+        button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      }
+    });
+  });
+
+  document.querySelectorAll('.header-menu-item[data-truncate-field]').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (button.disabled) return;
+      truncateField.value = button.dataset.truncateField;
+      truncateClear.value = button.dataset.truncateClear === '1' ? '1' : '0';
+      if (button.dataset.truncatePrompt === '1') {
+        if (!truncateDialog || !truncateDialog.showModal) {
+          const answer = window.prompt('Truncate displayed values to how many characters?', {{ default_truncate_limit | tojson }});
+          if (answer === null) {
+            closeMenus();
+            return;
+          }
+          truncateLimit.value = answer;
+          closeMenus();
+          truncateForm.submit();
+          return;
+        }
+        truncateDialog.dataset.field = button.dataset.truncateField;
+        truncateDialogTitle.textContent = 'Truncate "' + button.dataset.truncateField + '" values';
+        truncateDialogInput.value = {{ default_truncate_limit | tojson }};
+        closeMenus();
+        truncateDialog.showModal();
+        truncateDialogInput.focus();
+        truncateDialogInput.select();
+        return;
+      } else {
+        truncateLimit.value = button.dataset.truncateLimit || '';
+      }
+      closeMenus();
+      truncateForm.submit();
+    });
+  });
+
+  document.querySelectorAll('.header-menu-item[data-stat-field]').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const panel = document.querySelector('[data-header-stats-panel="' + button.dataset.statField + '"]');
+      const willOpen = panel && panel.hidden;
+      closeMenus();
+      closeStats();
+      if (panel) {
+        panel.hidden = !willOpen;
+      }
+    });
+  });
+
+  document.querySelectorAll('.header-stats, .header-menu').forEach(function (panel) {
+    panel.addEventListener('click', function (event) {
+      event.stopPropagation();
+    });
+  });
+
+  document.querySelectorAll('[data-close-stats]').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const panel = document.querySelector('[data-header-stats-panel="' + button.dataset.closeStats + '"]');
+      if (panel) {
+        panel.hidden = true;
+      }
+    });
+  });
+
+  if (truncateDialogApply) {
+    truncateDialogApply.addEventListener('click', function () {
+      truncateField.value = truncateDialog.dataset.field || '';
+      truncateClear.value = '0';
+      truncateLimit.value = truncateDialogInput.value;
+      truncateDialog.close();
+      truncateForm.submit();
+    });
+  }
+
+  if (truncateDialogCancel) {
+    truncateDialogCancel.addEventListener('click', function () {
+      truncateDialog.close();
+    });
+  }
+
+  document.addEventListener('click', function () {
+    closeMenus();
+    closeStats();
+  });
+})();
 </script>
 </body>
 </html>
