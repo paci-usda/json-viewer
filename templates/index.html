@@ -86,8 +86,12 @@
     /* Table view */
     table.data-table { border-collapse: collapse; width: max-content; font-size: 12px; max-width: none; table-layout: fixed; }
     table.data-table th, table.data-table td {
-      border: 1px solid #ccc; text-align: left; vertical-align: top; white-space: pre-wrap;
+      border: 1px solid #ccc; text-align: left; vertical-align: top;
       word-break: break-word; overflow-wrap: anywhere;
+    }
+    /* it was this; should not use in th: white-space: pre-wrap; */
+    table.data-table td {
+      white-space: pre-wrap;
     }
     table.data-table td { padding: 4px 8px; font-family: monospace; }
     table.data-table thead th {
@@ -95,7 +99,7 @@
     }
     table.data-table tbody tr:nth-child(even) { background: #f7f9fc; }
     table.data-table tbody tr:hover { background: #eef3fb; }
-    .header-cell { position: relative; min-width: 100%; }
+    .header-cell { position: relative; min-width: 100%; padding-top: 6px; padding-bottom: 6px; }
     .header-menu-toggle {
       border: none; background: transparent; padding: 1px 0; font: inherit; font-weight: 600;
       color: #223; cursor: pointer; width: 100%; text-align: left;
